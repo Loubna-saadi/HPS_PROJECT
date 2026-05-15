@@ -1,0 +1,39 @@
+<div class="sidebar">
+  <div class="sidebar-header p-4">
+    <div class="project-selector d-flex align-items-center justify-content-between p-2">
+      <div class="d-flex align-items-center">
+        <div class="avatar-tiny bg-dark text-white rounded me-2">CS</div>
+        <span class="fw-semibold text-dark" style="font-size: 0.9rem;">ConfigSync</span>
+      </div>
+      <i class="bi bi-chevron-expand text-muted"></i>
+    </div>
+  </div>
+
+  <nav class="nav-menu px-3">
+    <small class="text-uppercase text-muted fw-bold px-3 mb-2 d-block" style="font-size: 0.65rem; letter-spacing: 1px;">Menu</small>
+    <a routerLink="/dashboard" routerLinkActive="active" class="nav-link">
+      <i class="bi bi-grid-1x2"></i> Overview
+    </a>
+    <a routerLink="/compare" routerLinkActive="active" class="nav-link">
+      <i class="bi bi-arrow-left-right"></i> Comparison
+    </a>
+    <a routerLink="/export" routerLinkActive="active" class="nav-link">
+      <i class="bi bi-box-arrow-up-right"></i> Exports
+    </a>
+    <a routerLink="/audit" routerLinkActive="active" class="nav-link">
+  <i class="bi bi-journal-text"></i> Audit Logs
+</a>
+  </nav>
+
+  <div class="sidebar-footer p-3">
+    <div class="user-pill d-flex align-items-center p-2 rounded">
+      <div class="avatar-sm bg-light text-dark rounded-circle me-2 border">
+        <i class="bi bi-person"></i>
+      </div>
+      <div class="flex-grow-1 overflow-hidden">
+        <h6 class="mb-0 text-dark text-truncate" style="font-size: 0.85rem;">{{ userName }}</h6>
+      </div>
+      <button (click)="onLogout()" class="btn btn-link text-muted p-0"><i class="bi bi-gear"></i></button>
+    </div>
+  </div>
+</div>

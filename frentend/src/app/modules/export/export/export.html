@@ -1,0 +1,401 @@
+<div class="export-wrapper bg-light min-vh-100">
+
+  <!-- HEADER -->
+  <header class="page-header border-bottom bg-white px-4 py-3 d-flex justify-content-between align-items-center">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item text-muted">Audit</li>
+        <li *ngIf="isFromCompare" class="breadcrumb-item">
+          <a class="text-muted text-decoration-none breadcrumb-link" (click)="goBack()">Comparison Engine</a>
+        </li>
+        <li class="breadcrumb-item active fw-semibold text-dark">Data Export</li>
+      </ol>
+    </nav>
+    <button *ngIf="isFromCompare" class="btn-back" (click)="goBack()">
+      <i class="bi bi-arrow-left me-1"></i> Retour à la comparaison
+    </button>
+  </header>
+
+  <div class="p-4">
+
+    <ng-container *ngIf="operationId; else noOperation">
+
+      <!-- ── CONTEXT BANNER ──────────────────────────────── -->
+      <div class="context-banner mb-4">
+        <div class="context-banner-body">
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <div class="origin-badge" [class.origin-live]="isFromCompare" [class.origin-history]="!isFromCompare">
+              <i class="bi" [ngClass]="isFromCompare ? 'bi-lightning-charge-fill' : 'bi-clock-history'"></i>
+              <span>{{ isFromCompare ? 'Session en cours' : 'Opération historique' }}</span>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+              <span class="op-id-label">Op. #{{ operationId }}</span>
+              <span class="env-pill env-src">{{ envSrc }}</span>
+              <i class="bi bi-arrow-right text-muted" style="font-size:.7rem"></i>
+              <span class="env-pill env-cbl">{{ envCbl }}</span>
+            </div>
+            <!-- Script linked badge — shown after a successful save -->
+            <span class="origin-badge op-script-linked-badge"
+                  *ngIf="scriptSaveState === 'saved' && scriptSavedId">
+              <i class="bi bi-file-earmark-check-fill"></i>
+              Script #{{ scriptSavedId }} enregistré
+            </span>
+          </div>
+
+          <div class="d-flex align-items-center gap-2 flex-wrap">
+            <div class="ctx-chip chip-total"><i class="bi bi-layers"></i><span class="chip-num">{{ stats.total }}</span><span class="chip-lbl">total</span></div>
+            <div class="ctx-chip chip-absent"><i class="bi bi-dash-circle"></i><span class="chip-num">{{ stats.absences }}</span><span class="chip-lbl">absences</span></div>
+            <div class="ctx-chip chip-diff"><i class="bi bi-tilde"></i><span class="chip-num">{{ stats.differences }}</span><span class="chip-lbl">différences</span></div>
+            <div class="ctx-chip chip-null"><i class="bi bi-slash-circle"></i><span class="chip-num">{{ stats.nulls }}</span><span class="chip-lbl">null</span></div>
+            <button class="btn-change-op" (click)="showOperationPicker = !showOperationPicker; loadRecentOperations()">
+              <i class="bi bi-arrow-repeat me-1"></i> Changer d'opération
+            </button>
+          </div>
+        </div>
+
+        <!-- Operation picker -->
+        <div class="op-picker" *ngIf="showOperationPicker">
+          <div class="op-picker-header">
+            <span class="fw-semibold" style="font-size:.82rem">Opérations récentes</span>
+            <button class="btn-icon-close" (click)="showOperationPicker = false"><i class="bi bi-x"></i></button>
+          </div>
+          <div class="op-picker-loading" *ngIf="loadingOperations">
+            <span class="spinner-border spinner-border-sm text-primary me-2"></span> Chargement...
+          </div>
+          <div class="op-picker-list" *ngIf="!loadingOperations">
+            <div *ngFor="let op of recentOperations" class="op-picker-row"
+                 [class.op-picker-row-active]="op.id === operationId"
+                 (click)="selectOperation(op)">
+              <div class="d-flex align-items-center gap-2">
+                <span class="op-picker-id">#{{ op.id }}</span>
+                <span class="op-picker-env">{{ op.source_env }} → {{ op.cible_env }}</span>
+                <!-- Show script status if operation already has a stored script -->
+                <span class="op-script-pill" *ngIf="op.statut === 'SCRIPT_GENERE'">
+                  <i class="bi bi-file-earmark-check me-1"></i>Script
+                </span>
+              </div>
+              <div class="d-flex align-items-center gap-3">
+                <span class="op-picker-date">{{ op.date_operation | date:'dd MMM yyyy, HH:mm' }}</span>
+                <span class="op-picker-count">{{ op.nb_anomalies }} écarts</span>
+                <i class="bi bi-check2 text-primary fw-bold" *ngIf="op.id === operationId"></i>
+              </div>
+            </div>
+            <div class="op-picker-empty" *ngIf="recentOperations.length === 0">Aucune opération trouvée.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Loading -->
+      <div class="loading-block" *ngIf="loadingAnomalies">
+        <span class="spinner-border text-primary"></span>
+        <p class="text-muted mt-3 mb-0">Chargement des anomalies pour l'opération #{{ operationId }}...</p>
+      </div>
+
+      <ng-container *ngIf="!loadingAnomalies">
+
+        <!-- ── SCOPE + EXPORT CARDS ─────────────────────────── -->
+        <div class="row g-4 mb-4 align-items-stretch">
+
+          <!-- SCOPE SELECTOR -->
+          <div class="col-md-3">
+            <div class="card export-selector-card border-0 shadow-sm h-100">
+              <div class="card-body p-4">
+                <p class="scope-section-label">PÉRIMÈTRE D'EXPORT</p>
+
+                <div class="scope-option" [class.scope-active]="exportScope === 'all'" (click)="exportScope = 'all'; applyScope()">
+                  <div class="scope-radio"><div class="scope-dot" *ngIf="exportScope === 'all'"></div></div>
+                  <div><div class="scope-name">Tous les écarts</div><div class="scope-count">{{ stats.total }} écarts</div></div>
+                </div>
+                <div class="scope-option" [class.scope-active]="exportScope === 'absences'" (click)="exportScope = 'absences'; applyScope()">
+                  <div class="scope-radio"><div class="scope-dot scope-dot-red" *ngIf="exportScope === 'absences'"></div></div>
+                  <div><div class="scope-name">Absences</div><div class="scope-count">{{ stats.absences }} écarts</div></div>
+                </div>
+                <div class="scope-option" [class.scope-active]="exportScope === 'differences'" (click)="exportScope = 'differences'; applyScope()">
+                  <div class="scope-radio"><div class="scope-dot scope-dot-orange" *ngIf="exportScope === 'differences'"></div></div>
+                  <div><div class="scope-name">Valeurs différentes</div><div class="scope-count">{{ stats.differences }} écarts</div></div>
+                </div>
+                <div class="scope-option" [class.scope-active]="exportScope === 'nulls'" (click)="exportScope = 'nulls'; applyScope()">
+                  <div class="scope-radio"><div class="scope-dot scope-dot-purple" *ngIf="exportScope === 'nulls'"></div></div>
+                  <div><div class="scope-name">Valeurs NULL</div><div class="scope-count">{{ stats.nulls }} écarts</div></div>
+                </div>
+
+                <div class="scope-divider"></div>
+                <p class="text-muted mb-2" style="font-size:.72rem; line-height:1.5">
+                  Le filtre s'applique à l'aperçu, au script et à chaque fichier exporté.
+                </p>
+                <div *ngIf="affectedTables.length > 0">
+                  <p class="scope-section-label mb-2">TABLES</p>
+                  <div class="affected-tables-list">
+                    <span *ngFor="let t of affectedTables" class="tbl-chip">{{ t }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- EXPORT CARDS -->
+          <div class="col-md-9">
+            <div class="row g-4">
+              <div class="col-md-4">
+                <div class="card export-type-card border-0 shadow-sm h-100" (click)="onExportJson()">
+                  <div class="card-body text-center p-4">
+                    <div class="export-icon bg-gradient-purple mb-3"><i class="bi bi-filetype-json"></i></div>
+                    <h6 class="fw-bold text-dark">Format JSON</h6>
+                    <p class="text-muted smaller">Idéal pour l'intégration programmatique et le stockage NoSQL.</p>
+                    <div class="export-count-badge mt-2">{{ filteredAnomalies.length }} écarts</div>
+                    <button class="btn btn-export-action mt-2">Download JSON</button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card export-type-card border-0 shadow-sm h-100" (click)="onExportCsv()">
+                  <div class="card-body text-center p-4">
+                    <div class="export-icon bg-gradient-blue mb-3"><i class="bi bi-file-earmark-excel"></i></div>
+                    <h6 class="fw-bold text-dark">Format CSV / Excel</h6>
+                    <p class="text-muted smaller">Parfait pour l'analyse métier et les rapports sur tableur.</p>
+                    <div class="export-count-badge mt-2">{{ filteredAnomalies.length }} écarts</div>
+                    <button class="btn btn-export-action mt-2">Download CSV</button>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card export-type-card border-0 shadow-sm h-100" (click)="onExportXml()">
+                  <div class="card-body text-center p-4">
+                    <div class="export-icon bg-gradient-orange mb-3"><i class="bi bi-filetype-xml"></i></div>
+                    <h6 class="fw-bold text-dark">Format XML</h6>
+                    <p class="text-muted smaller">Format standard pour l'échange de données structurées.</p>
+                    <div class="export-count-badge mt-2">{{ filteredAnomalies.length }} écarts</div>
+                    <button class="btn btn-export-action mt-2">Download XML</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════ -->
+        <!-- SCRIPT EDITOR — SUPERUSER / ADMIN only            -->
+        <!-- ══════════════════════════════════════════════════ -->
+        <div class="script-editor-section mb-4" *ngIf="canEditScript && filteredAnomalies.length > 0">
+
+          <!-- Section header -->
+          <div class="script-editor-header">
+            <div class="d-flex align-items-center gap-3">
+              <div class="script-header-icon"><i class="bi bi-terminal-fill"></i></div>
+              <div>
+                <div class="script-header-title">Script de correction SQL</div>
+                <div class="script-header-sub">Généré automatiquement · modifiable · sauvegardable en base</div>
+              </div>
+              <span class="script-modified-badge" *ngIf="scriptModified">
+                <i class="bi bi-pencil-fill me-1"></i> Modifié
+              </span>
+            </div>
+
+            <!-- Rule direction toggle -->
+            <div class="rule-toggle-group">
+              <span class="rule-toggle-label">Règle :</span>
+              <div class="rule-toggle">
+                <button class="rule-btn" [class.rule-btn-active]="ruleDirection === 'source'"
+                        (click)="onRuleDirectionChange('source')">
+                  <i class="bi bi-database me-1"></i>{{ envSrc || 'SOURCE' }} impose
+                </button>
+                <button class="rule-btn" [class.rule-btn-active]="ruleDirection === 'cible'"
+                        (click)="onRuleDirectionChange('cible')">
+                  <i class="bi bi-database me-1"></i>{{ envCbl || 'CIBLE' }} impose
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Rule explanation -->
+          <div class="rule-explanation">
+            <i class="bi bi-info-circle me-2"></i>
+            <span *ngIf="ruleDirection === 'source'">
+              <strong>{{ envSrc }}</strong> fait autorité.
+              Les UPDATE/DELETE/INSERT ciblent <strong>{{ envCbl }}</strong> pour qu'il reflète la source.
+            </span>
+            <span *ngIf="ruleDirection === 'cible'">
+              <strong>{{ envCbl }}</strong> fait autorité.
+              Les UPDATE/DELETE/INSERT ciblent <strong>{{ envSrc }}</strong> pour qu'il reflète la cible.
+            </span>
+          </div>
+
+          <!-- Editor body -->
+          <div class="script-editor-body">
+            <div class="editor-line-numbers" aria-hidden="true">
+              <span *ngFor="let line of scriptContent.split('\n'); let i = index">{{ i + 1 }}</span>
+            </div>
+            <textarea class="editor-textarea" [(ngModel)]="scriptContent"
+                      (input)="onScriptInput()" spellcheck="false"
+                      autocomplete="off" autocorrect="off" autocapitalize="off"
+                      placeholder="Le script sera généré ici...">
+            </textarea>
+          </div>
+
+          <!-- Editor footer -->
+          <div class="script-editor-footer">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="editor-stat">
+                <i class="bi bi-list-ol me-1"></i>{{ scriptContent.split('\n').length }} lignes
+              </span>
+              <span class="editor-stat-sep"></span>
+              <span class="editor-stat">
+                <i class="bi bi-type me-1"></i>{{ scriptContent.length }} caractères
+              </span>
+              <!-- Save state indicators -->
+              <span class="save-state save-state-saved" *ngIf="scriptSaveState === 'saved'">
+                <i class="bi bi-check-circle-fill me-1"></i>
+                Sauvegardé{{ scriptSavedId ? ' (#' + scriptSavedId + ')' : '' }}
+                · Op. #{{ operationId }} → <strong>SCRIPT_GENERE</strong>
+              </span>
+              <span class="save-state save-state-error" *ngIf="scriptSaveState === 'error'">
+                <i class="bi bi-exclamation-triangle-fill me-1"></i>Erreur lors de la sauvegarde
+              </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-2">
+              <button class="editor-action-btn btn-reset" (click)="resetScript()"
+                      [disabled]="!scriptModified">
+                <i class="bi bi-arrow-counterclockwise me-1"></i> Réinitialiser
+              </button>
+              <button class="editor-action-btn btn-export-sql" (click)="onExportSql()"
+                      [disabled]="!scriptContent.trim()">
+                <i class="bi bi-download me-1"></i> Télécharger .sql
+              </button>
+              <button class="editor-action-btn btn-save-script"
+                      (click)="saveScript()"
+                      [disabled]="scriptSaveState === 'saving' || !scriptContent.trim()">
+                <span *ngIf="scriptSaveState === 'saving'" class="spinner-border spinner-border-sm me-1"></span>
+                <i *ngIf="scriptSaveState !== 'saving'" class="bi bi-cloud-arrow-up-fill me-1"></i>
+                {{ scriptSaveState === 'saving' ? 'Sauvegarde...' : (scriptSaveState === 'saved' ? 'Re-sauvegarder' : 'Sauvegarder en base') }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ── PREVIEW TABLE ──────────────────────────────────── -->
+        <div class="card border-0 shadow-sm overflow-hidden" *ngIf="filteredAnomalies.length > 0">
+          <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-3">
+              <h6 class="mb-0 fw-bold text-dark">Aperçu des données</h6>
+              <span class="badge-count">
+                {{ filteredAnomalies.length }} ligne(s) ·
+                périmètre : <strong>{{ exportScope === 'all' ? 'tous les écarts' : exportScope }}</strong>
+              </span>
+            </div>
+            <small class="text-muted">Page {{ previewPage }} / {{ totalPages }}</small>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table align-middle mb-0 matrix-table">
+              <thead>
+                <tr>
+                  <th>CLÉ</th>
+                  <th>TABLE</th>
+                  <th>COLONNE</th>
+                  <th>VALEUR SOURCE</th>
+                  <th>VALEUR CIBLE</th>
+                  <th class="text-center">STATUT</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of previewRows; trackBy: trackById">
+                  <td class="fw-mono text-primary" style="font-size:.8rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ row.cle }}</td>
+                  <td class="fw-semibold" style="font-size:.82rem">{{ row.nom_table }}</td>
+                  <td><span class="column-tag">{{ row.type_difference }}</span></td>
+                  <td>
+                    <div class="diff-box diff-src" [title]="row.valeur_source ?? 'NULL'">
+                      <span class="diff-env-label">{{ envSrc }}</span>
+                      {{ row.valeur_source ?? 'NULL' }}
+                    </div>
+                  </td>
+                  <td>
+                    <div class="diff-box diff-target" [title]="row.valeur_cible ?? 'NULL'">
+                      <span class="diff-env-label">{{ envCbl }}</span>
+                      {{ row.valeur_cible ?? 'NULL' }}
+                    </div>
+                  </td>
+                  <td class="text-center">
+                    <span class="status-dot {{ getStatusClass(row.alerte_statut) }}"></span>
+                    <span class="status-text">{{ getStatusLabel(row.alerte_statut) }}</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="card-footer bg-white border-top py-2 px-4 d-flex justify-content-between align-items-center"
+               *ngIf="totalPages > 1">
+            <small class="text-muted">
+              Affichage {{ (previewPage - 1) * PAGE_SIZE + 1 }}–{{ minOf(previewPage * PAGE_SIZE, filteredAnomalies.length) }}
+              sur {{ filteredAnomalies.length }}
+            </small>
+            <div class="pagination-row">
+              <button class="pg-btn" [disabled]="previewPage === 1" (click)="previewPage = previewPage - 1"><i class="bi bi-chevron-left"></i></button>
+              <ng-container *ngFor="let p of paginationPages">
+                <span *ngIf="p === -1" class="pg-ellipsis">…</span>
+                <button *ngIf="p !== -1" class="pg-btn" [class.pg-btn-active]="p === previewPage" (click)="previewPage = p">{{ p }}</button>
+              </ng-container>
+              <button class="pg-btn" [disabled]="previewPage === totalPages" (click)="previewPage = previewPage + 1"><i class="bi bi-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty scope -->
+        <div class="empty-state-modern shadow-sm" *ngIf="filteredAnomalies.length === 0 && allAnomalies.length > 0">
+          <div class="success-circle"><i class="bi bi-funnel"></i></div>
+          <h4>Aucune ligne dans ce périmètre</h4>
+          <p class="text-muted">Ce filtre ne correspond à aucun écart pour l'opération #{{ operationId }}.</p>
+        </div>
+
+      </ng-container>
+    </ng-container>
+
+    <!-- NO OPERATION YET -->
+    <ng-template #noOperation>
+      <div class="card export-selector-card border-0 shadow-sm mb-4">
+        <div class="card-body p-5 text-center">
+          <div class="export-icon bg-gradient-dark mb-4" style="margin:0 auto">
+            <i class="bi bi-clock-history"></i>
+          </div>
+          <h5 class="fw-bold text-dark mb-1">Sélectionner une opération</h5>
+          <p class="text-muted small mb-4">
+            Naviguez depuis la page Comparison Engine pour exporter une session active,<br>
+            ou chargez une opération historique ci-dessous.
+          </p>
+          <button class="btn btn-export-action px-4 py-2"
+                  style="width:auto; display:inline-flex; align-items:center; gap:.4rem"
+                  (click)="loadRecentOperations(false); showOperationPicker = true"
+                  [disabled]="loadingOperations">
+            <span *ngIf="loadingOperations" class="spinner-border spinner-border-sm"></span>
+            <i *ngIf="!loadingOperations" class="bi bi-clock-history"></i>
+            Charger les opérations récentes
+          </button>
+
+          <div class="op-picker mt-4 mx-auto" style="max-width:580px; text-align:left" *ngIf="showOperationPicker">
+            <div class="op-picker-loading" *ngIf="loadingOperations">
+              <span class="spinner-border spinner-border-sm text-primary me-2"></span> Chargement...
+            </div>
+            <div class="op-picker-list" *ngIf="!loadingOperations">
+              <div *ngFor="let op of recentOperations" class="op-picker-row" (click)="selectOperation(op)">
+                <div class="d-flex align-items-center gap-2">
+                  <span class="op-picker-id">#{{ op.id }}</span>
+                  <span class="op-picker-env">{{ op.source_env }} → {{ op.cible_env }}</span>
+                  <span class="op-script-pill" *ngIf="op.statut === 'SCRIPT_GENERE'">
+                    <i class="bi bi-file-earmark-check me-1"></i>Script
+                  </span>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                  <span class="op-picker-date">{{ op.date_operation | date:'dd MMM yyyy, HH:mm' }}</span>
+                  <span class="op-picker-count">{{ op.nb_anomalies }} écarts</span>
+                </div>
+              </div>
+              <div class="op-picker-empty" *ngIf="recentOperations.length === 0">Aucune opération trouvée.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ng-template>
+
+  </div>
+</div>

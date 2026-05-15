@@ -1,0 +1,49 @@
+/* --- Dashboard Main Body Layout --- */
+.custom-dashboard-table thead th {
+  background-color: transparent;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-top: none;
+  border-bottom: 1px solid #f1f5f9;
+  padding: 15px 0;
+}
+
+.custom-dashboard-table tbody td {
+  padding: 15px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.85rem;
+}
+
+/* --- Status Pills --- */
+.status-pill {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.status-pill.success { background-color: #dcfce7; color: #16a34a; }
+.status-pill.warning { background-color: #fef3c7; color: #d97706; }
+
+/* --- DB Health Item --- */
+.db-status-item .badge { font-size: 0.6rem; }
+.progress { background-color: #f1f5f9; overflow: visible; }
+
+/* --- Keep your existing classes below --- */
+.mini-card { height: 90px; border-radius: 12px; transition: transform 0.2s ease-in-out; }
+.mini-card:hover { transform: translateY(-4px); }
+.card-icon { font-size: 1.8rem; opacity: 0.4; }
+
+.bg-gradient-purple { background: linear-gradient(87deg, #2dce89 0, #2dcecc 100%) !important; }
+.bg-gradient-blue { background: linear-gradient(87deg, #4c939f 0, #7bb9c4 100%) !important; }
+.bg-gradient-orange { background: linear-gradient(87deg, #f14647 0, #fba87e 100%) !important; }
+.bg-gradient-dark { background: linear-gradient(87deg, #33335e 0, #654c86 100%) !important; }
+
+.btn-run-audit {
+  background: linear-gradient(87deg, #f14647 0%, #fba87e 100%);
+  color: white; border: none; font-weight: 600; border-radius: 8px; font-size: 0.85rem;
+}

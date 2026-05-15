@@ -1,0 +1,9 @@
+<div style="display: flex;">
+  @if (showSidebar) {
+    <app-sidebar></app-sidebar>
+  }
+
+  <div [style.width]="showSidebar ? 'calc(100% - 250px)' : '100%'">
+    <router-outlet></router-outlet>
+  </div>
+</div>

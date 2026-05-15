@@ -1,0 +1,441 @@
+<div class="compare-wrapper bg-light min-vh-100">
+
+  <!-- HEADER -->
+  <header class="page-header border-bottom bg-white px-4 py-3 d-flex justify-content-between align-items-center">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item text-muted">Audit</li>
+        <li class="breadcrumb-item active fw-semibold text-dark">Comparison Engine</li>
+      </ol>
+    </nav>
+    <div *ngIf="loading" class="d-flex align-items-center gap-2">
+      <span class="spinner-border spinner-border-sm text-primary"></span>
+      <small class="text-muted fw-medium">Analyse en cours...</small>
+    </div>
+  </header>
+
+  <div class="p-4">
+
+    <!-- CONFIG CARD -->
+    <div class="card compare-card border-0 shadow-sm mb-4">
+      <div class="card-body p-4">
+        <div class="row g-3 align-items-end">
+
+          <div class="col-md-2">
+            <label class="form-label-small">SOURCE</label>
+            <select [(ngModel)]="envSrc" class="form-select-custom" [disabled]="loading"
+                    (ngModelChange)="loadAvailableTables()">
+              <option *ngFor="let env of availableEnvs" [value]="env">{{ env }}</option>
+            </select>
+          </div>
+
+          <div class="col-md-1 text-center pb-2 d-none d-md-block">
+            <i class="bi bi-arrow-right text-muted h4 mb-0"></i>
+          </div>
+
+          <div class="col-md-2">
+            <label class="form-label-small">TARGET</label>
+            <select [(ngModel)]="envCbl" class="form-select-custom" [disabled]="loading">
+              <option *ngFor="let env of availableEnvs" [value]="env">{{ env }}</option>
+            </select>
+          </div>
+
+          <!-- TABLE NAME (single mode) -->
+          <div class="col-md-2" *ngIf="!isFullScan">
+            <label class="form-label-small">TABLE</label>
+            <input type="text" [(ngModel)]="tableName"
+                   (ngModelChange)="onTableNameChange()"
+                   placeholder="ex: CARD_PRODUCT"
+                   class="form-input-custom text-uppercase" [disabled]="loading">
+          </div>
+
+          <!-- EXCLUDE COLUMNS (single mode) -->
+          <div class="col-md-3" *ngIf="!isFullScan">
+            <label class="form-label-small">
+              EXCLURE COLONNES
+              <span *ngIf="excludedColumns.size > 0" class="excl-badge">{{ excludedColumns.size }}</span>
+            </label>
+            <div class="dropdown-excl">
+              <button class="excl-trigger" [disabled]="loading || availableColumns.length === 0"
+                      (click)="showColumnDropdown = !showColumnDropdown">
+                <i class="bi bi-funnel me-1"></i>
+                <span *ngIf="availableColumns.length === 0 && !columnsLoading">Saisir une table d'abord</span>
+                <span *ngIf="columnsLoading"><span class="spinner-border spinner-border-sm"></span></span>
+                <span *ngIf="availableColumns.length > 0 && !columnsLoading">
+                  {{ excludedColumns.size === 0 ? availableColumns.length + ' colonnes disponibles' : excludedColumns.size + ' exclue(s)' }}
+                </span>
+                <i class="bi bi-chevron-down ms-auto"></i>
+              </button>
+              <div class="excl-panel" *ngIf="showColumnDropdown && availableColumns.length > 0">
+                <div class="excl-search-bar">
+                  <i class="bi bi-search excl-search-icon"></i>
+                  <input type="text" class="excl-search-input" placeholder="Rechercher une colonne..."
+                         [(ngModel)]="columnSearch" (ngModelChange)="onColumnSearch()"
+                         (click)="$event.stopPropagation()">
+                  <button *ngIf="columnSearch" class="excl-search-clear"
+                          (click)="columnSearch=''; onColumnSearch(); $event.stopPropagation()">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+                <div class="excl-list">
+                  <div *ngIf="filteredColumns.length === 0" class="excl-empty">
+                    Aucun résultat pour "{{ columnSearch }}"
+                  </div>
+                  <label *ngFor="let col of filteredColumns" class="excl-item"
+                         [class.excl-item-checked]="excludedColumns.has(col.column_name)"
+                         (click)="toggleColumnExclusion(col.column_name, $event)">
+                    <span class="excl-check">
+                      <i class="bi" [ngClass]="excludedColumns.has(col.column_name)
+                         ? 'bi-x-circle-fill text-danger' : 'bi-circle text-muted'"></i>
+                    </span>
+                    <span class="excl-name">{{ col.column_name }}</span>
+                    <span class="excl-type">{{ col.data_type }}</span>
+                    <span *ngIf="col.nullable === 'Y'" class="excl-null">NULL</span>
+                  </label>
+                </div>
+                <div class="excl-footer">
+                  <span class="text-muted" style="font-size:0.72rem">
+                    {{ filteredColumns.length }} / {{ availableColumns.length }}
+                  </span>
+                  <button class="excl-clear" (click)="clearColumnExclusion()">Tout inclure</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- EXCLUDE TABLES (full scan mode) -->
+          <div class="col-md-4" *ngIf="isFullScan">
+            <label class="form-label-small">
+              EXCLURE TABLES
+              <span *ngIf="excludedTables.size > 0" class="excl-badge">{{ excludedTables.size }}</span>
+            </label>
+            <div class="dropdown-excl">
+              <button class="excl-trigger" [disabled]="loading"
+                      (click)="showTableDropdown = !showTableDropdown">
+                <i class="bi bi-table me-1"></i>
+                {{ excludedTables.size === 0 ? availableTables.length + ' tables' : excludedTables.size + ' exclue(s)' }}
+                <i class="bi bi-chevron-down ms-auto"></i>
+              </button>
+              <div class="excl-panel excl-panel-wide" *ngIf="showTableDropdown">
+                <div class="excl-search-bar">
+                  <i class="bi bi-search excl-search-icon"></i>
+                  <input type="text" class="excl-search-input" placeholder="Rechercher une table..."
+                         [(ngModel)]="tableSearch" (ngModelChange)="onTableSearch()"
+                         (click)="$event.stopPropagation()">
+                  <button *ngIf="tableSearch" class="excl-search-clear"
+                          (click)="tableSearch=''; onTableSearch(); $event.stopPropagation()">
+                    <i class="bi bi-x"></i>
+                  </button>
+                </div>
+                <div class="excl-list">
+                  <div *ngIf="filteredTables.length === 0" class="excl-empty">
+                    Aucun résultat pour "{{ tableSearch }}"
+                  </div>
+                  <label *ngFor="let tbl of filteredTables" class="excl-item"
+                         [class.excl-item-checked]="excludedTables.has(tbl)"
+                         (click)="toggleTableExclusion(tbl, $event)">
+                    <span class="excl-check">
+                      <i class="bi" [ngClass]="excludedTables.has(tbl)
+                         ? 'bi-x-circle-fill text-danger' : 'bi-circle text-muted'"></i>
+                    </span>
+                    <span class="excl-name">{{ tbl }}</span>
+                  </label>
+                </div>
+                <div class="excl-footer">
+                  <span class="text-muted" style="font-size:0.72rem">
+                    {{ filteredTables.length }} / {{ availableTables.length }}
+                  </span>
+                  <button class="excl-clear" (click)="clearTableExclusion()">Tout inclure</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- FULL SCAN TOGGLE -->
+          <div class="col-md-1">
+            <div class="form-check form-switch custom-switch mt-1">
+              <input class="form-check-input" type="checkbox"
+                     [(ngModel)]="isFullScan" [disabled]="loading" id="fullScan">
+              <label class="form-check-label ms-2 fw-semibold text-dark"
+                     for="fullScan" style="font-size:0.82rem">Global</label>
+            </div>
+          </div>
+
+          <div class="col-md-2 text-end">
+            <button (click)="startCompare()" [disabled]="loading" class="btn-run-audit w-100 py-2">
+              <i class="bi bi-lightning-charge-fill me-2" *ngIf="!loading"></i>
+              {{ loading ? 'Analyse...' : 'Comparer' }}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- STATS BAR -->
+    <div class="stats-bar mb-3" *ngIf="lastOperationId && !loading">
+      <div class="stat-pill stat-groups">
+        <i class="bi bi-layers"></i>
+        <span class="stat-num">{{ stats.groups }}</span>
+        <span class="stat-lbl">enregistrements</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-pill stat-different">
+        <i class="bi bi-tilde"></i>
+        <span class="stat-num">{{ stats.different }}</span>
+        <span class="stat-lbl">différences</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-pill stat-missing-cible">
+        <i class="bi bi-dash-circle"></i>
+        <span class="stat-num">{{ stats.missingCible }}</span>
+        <span class="stat-lbl">absents cible</span>
+      </div>
+      <div class="stat-sep"></div>
+      <div class="stat-pill stat-missing-source">
+        <i class="bi bi-plus-circle"></i>
+        <span class="stat-num">{{ stats.missingSource }}</span>
+        <span class="stat-lbl">absents source</span>
+      </div>
+      <div class="ms-auto d-flex gap-2 align-items-center">
+        <span class="text-muted small">Op. #{{ lastOperationId }}</span>
+        <button class="btn-action btn-export" (click)="navigateToExport()">
+          <i class="bi bi-box-arrow-up-right me-1"></i>
+          {{ hasSelection ? 'Exporter sélection (' + selectedGroups.size + ')' : 'Exporter tout' }}
+        </button>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- RESULTS MATRIX TABLE                                   -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div class="card border-0 shadow-sm overflow-hidden" *ngIf="groups.length > 0">
+      <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-3">
+          <h6 class="mb-0 fw-bold text-dark">
+            Résultats <span class="text-muted ms-1">#{{ lastOperationId }}</span>
+          </h6>
+          <span class="badge-count">
+            <ng-container *ngIf="isFullScan">{{ tableGroups.length }} table(s) · </ng-container>{{ groups.length }} enreg. · {{ anomalies.length }} écart(s)
+          </span>
+          <span *ngIf="hasSelection" class="badge-selected">{{ selectedGroups.size }} sélectionné(s)</span>
+        </div>
+        <small class="text-muted">Cliquer sur une ligne pour voir le détail</small>
+      </div>
+
+      <div class="table-responsive" style="max-height: 65vh; overflow-y: auto;">
+        <table class="table align-middle mb-0 matrix-table">
+          <thead>
+            <tr>
+              <th style="width:36px">
+                <input type="checkbox" class="form-check-input"
+                       [checked]="selectAll" (change)="toggleSelectAll()">
+              </th>
+              <th>ENREGISTREMENT (CLÉ)</th>
+              <th>TABLE</th>
+              <th class="text-center">COLONNES</th>
+              <th class="text-center">STATUT</th>
+              <th style="width:90px"></th>
+            </tr>
+          </thead>
+          <tbody>
+
+            <!-- ── FULL SCAN mode: grouped by table ── -->
+            <ng-container *ngIf="isFullScan; else singleMode">
+              <ng-container *ngFor="let tg of tableGroups; trackBy: trackByTable">
+
+                <!-- Table group header row -->
+                <tr class="tbl-grp-row" (click)="toggleTableGroup(tg)">
+                  <td colspan="6" class="tbl-grp-cell">
+                    <div class="tbl-grp-inner">
+                      <i class="bi tbl-grp-chevron-icon"
+                         [ngClass]="tg.collapsed ? 'bi-chevron-right' : 'bi-chevron-down'"></i>
+                      <i class="bi bi-table tbl-grp-table-icon"></i>
+                      <span class="tbl-grp-name">{{ tg.table }}</span>
+                      <span class="tbl-grp-pill">{{ tg.groups.length }} clé{{ tg.groups.length > 1 ? 's' : '' }}</span>
+                      <span class="tbl-grp-status-dots">
+                        <span *ngFor="let grp of tg.groups.slice(0, 20)"
+                              class="tbl-dot {{ getGroupStatusClass(grp.statusSummary) }}-dot"
+                              [title]="getGroupStatusLabel(grp.statusSummary)"></span>
+                        <span *ngIf="tg.groups.length > 20" class="tbl-dot-more">+{{ tg.groups.length - 20 }}</span>
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- Child rows -->
+                <ng-container *ngIf="!tg.collapsed">
+                  <tr *ngFor="let grp of tg.groups; trackBy: trackByKey"
+                      class="grp-row grp-row-child"
+                      [class.grp-row-selected]="selectedGroups.has(groupKey(grp))"
+                      [class.grp-row-active]="drawerGroup?.cle === grp.cle && drawerGroup?.table === grp.table"
+                      (click)="openDrawer(grp)">
+                    <td (click)="$event.stopPropagation()">
+                      <input type="checkbox" class="form-check-input"
+                             [checked]="selectedGroups.has(groupKey(grp))"
+                             (change)="toggleGroup(grp)">
+                    </td>
+                    <td class="fw-mono text-primary grp-key grp-key-child">{{ grp.cle }}</td>
+                    <td class="text-muted fw-medium" style="font-size:0.79rem;">{{ grp.table }}</td>
+                    <td class="text-center">
+                      <span class="col-count-badge">{{ grp.columns.length }}</span>
+                    </td>
+                    <td class="text-center">
+                      <span class="grp-status {{ getGroupStatusClass(grp.statusSummary) }}">
+                        {{ getGroupStatusLabel(grp.statusSummary) }}
+                      </span>
+                    </td>
+                    <td class="text-center" (click)="$event.stopPropagation()">
+                      <button class="btn-detail" (click)="openDrawer(grp)">
+                        <i class="bi bi-layout-sidebar-reverse me-1"></i> Détails
+                      </button>
+                    </td>
+                  </tr>
+                </ng-container>
+
+              </ng-container>
+            </ng-container>
+
+            <!-- ── SINGLE TABLE mode: flat list ── -->
+            <ng-template #singleMode>
+              <tr *ngFor="let grp of groups; trackBy: trackByKey"
+                  class="grp-row"
+                  [class.grp-row-selected]="selectedGroups.has(groupKey(grp))"
+                  [class.grp-row-active]="drawerGroup?.cle === grp.cle && drawerGroup?.table === grp.table"
+                  (click)="openDrawer(grp)">
+                <td (click)="$event.stopPropagation()">
+                  <input type="checkbox" class="form-check-input"
+                         [checked]="selectedGroups.has(groupKey(grp))"
+                         (change)="toggleGroup(grp)">
+                </td>
+                <td class="fw-mono text-primary grp-key">{{ grp.cle }}</td>
+                <td class="fw-semibold">{{ grp.table }}</td>
+                <td class="text-center">
+                  <span class="col-count-badge">{{ grp.columns.length }}</span>
+                </td>
+                <td class="text-center">
+                  <span class="grp-status {{ getGroupStatusClass(grp.statusSummary) }}">
+                    {{ getGroupStatusLabel(grp.statusSummary) }}
+                  </span>
+                </td>
+                <td class="text-center" (click)="$event.stopPropagation()">
+                  <button class="btn-detail" (click)="openDrawer(grp)">
+                    <i class="bi bi-layout-sidebar-reverse me-1"></i> Détails
+                  </button>
+                </td>
+              </tr>
+            </ng-template>
+
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div class="empty-state-modern shadow-sm"
+         *ngIf="!loading && lastOperationId && groups.length === 0">
+      <div class="success-circle">
+        <i class="bi bi-check2-all"></i>
+      </div>
+      <h4>Synchronisation Parfaite</h4>
+      <p class="text-muted">Aucune différence détectée entre {{ envSrc }} et {{ envCbl }}.</p>
+    </div>
+
+  </div><!-- /p-4 -->
+</div><!-- /compare-wrapper -->
+
+
+<!-- ══════════════════════════════════════════════════════════════ -->
+<!-- DETAIL DRAWER                                                   -->
+<!-- ══════════════════════════════════════════════════════════════ -->
+
+<div class="drawer-backdrop" [class.drawer-backdrop-visible]="drawerOpen" (click)="closeDrawer()"></div>
+
+<aside class="detail-drawer" [class.detail-drawer-open]="drawerOpen" *ngIf="drawerGroup">
+
+  <!-- ── Header ── -->
+  <div class="drawer-header">
+    <div class="drawer-header-left">
+      <button class="drawer-close-btn" (click)="closeDrawer()" title="Fermer (Esc)">
+        <i class="bi bi-x-lg"></i>
+      </button>
+      <div>
+        <div class="drawer-title">Détail des écarts</div>
+        <div class="drawer-subtitle">
+          <span class="drawer-table-badge">{{ drawerGroup.table }}</span>
+          <span class="drawer-sep">·</span>
+          <span class="fw-mono drawer-key">{{ drawerGroup.cle }}</span>
+        </div>
+      </div>
+    </div>
+    <div class="drawer-nav">
+      <span class="drawer-nav-label">{{ drawerIndex + 1 }} / {{ groups.length }}</span>
+      <button class="drawer-nav-btn" [disabled]="drawerIndex === 0" (click)="drawerPrev()" title="Précédent (↑)">
+        <i class="bi bi-chevron-up"></i>
+      </button>
+      <button class="drawer-nav-btn" [disabled]="drawerIndex === groups.length - 1" (click)="drawerNext()" title="Suivant (↓)">
+        <i class="bi bi-chevron-down"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Status sub-bar ── -->
+  <div class="drawer-status-row">
+    <span class="grp-status {{ getGroupStatusClass(drawerGroup.statusSummary) }}">
+      {{ getGroupStatusLabel(drawerGroup.statusSummary) }}
+    </span>
+    <span class="drawer-col-count">
+      <i class="bi bi-columns-gap me-1"></i>{{ drawerGroup.columns.length }} colonne(s)
+    </span>
+    <label class="drawer-select-label ms-auto" (click)="$event.stopPropagation()">
+      <input type="checkbox" class="form-check-input me-1"
+             [checked]="selectedGroups.has(groupKey(drawerGroup))"
+             (change)="toggleGroup(drawerGroup)">
+      Export
+    </label>
+  </div>
+
+  <!-- ── Scrollable diff cards — NO pagination ── -->
+  <div class="drawer-body">
+    <div *ngFor="let col of drawerGroup.columns; trackBy: trackById" class="diff-card">
+
+      <div class="diff-card-header">
+        <span class="column-tag">{{ col.type_difference }}</span>
+        <span class="ms-auto d-flex align-items-center gap-1">
+          <span class="status-dot {{ getStatusClass(col.alerte_statut) }}"></span>
+          <span class="status-text">{{ col.alerte_statut }}</span>
+        </span>
+      </div>
+
+      <div class="diff-card-values">
+        <div class="diff-value-block diff-value-src">
+          <span class="diff-value-env">{{ envSrc }}</span>
+          <span class="diff-value-content" [title]="col.valeur_source ?? 'NULL'">{{ col.valeur_source ?? 'NULL' }}</span>
+        </div>
+        <div class="diff-arrow"><i class="bi bi-arrow-right"></i></div>
+        <div class="diff-value-block diff-value-cbl">
+          <span class="diff-value-env">{{ envCbl }}</span>
+          <span class="diff-value-content" [title]="col.valeur_cible ?? 'NULL'">{{ col.valeur_cible ?? 'NULL' }}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <div *ngIf="drawerGroup.columns.length === 0" class="drawer-empty">
+      <i class="bi bi-check2-circle text-success me-2"></i>
+      Aucun écart détecté sur cet enregistrement.
+    </div>
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="drawer-footer">
+    <button class="drawer-footer-btn drawer-footer-close" (click)="closeDrawer()">
+      <i class="bi bi-arrow-left me-1"></i> Retour
+    </button>
+    <span class="drawer-footer-hint">
+      <i class="bi bi-keyboard me-1 opacity-50"></i>
+      <span class="opacity-50">↑ ↓ naviguer &nbsp;·&nbsp; Esc fermer</span>
+    </span>
+  </div>
+
+</aside>

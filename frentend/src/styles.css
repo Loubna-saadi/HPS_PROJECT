@@ -1,0 +1,22 @@
+/* You can add global styles to this file, and also import other style files */
+/* Force l'alignement au sommet de l'écran */
+body, html {
+  margin: 0;
+  padding: 0;
+}
+
+/* Le conteneur qui tient Sidebar + Main Content */
+.app-layout {
+  display: flex;
+  align-items: flex-start; /* Aligne tout en haut */
+}
+
+main {
+  flex-grow: 1;
+  min-height: 100vh;
+  background-color: #f9fafb; /* bg-light */
+}
+/* app.component.css or your layout css */
+.main-content {
+  margin-left: 240px;   /* same as sidebar width */
+}

@@ -1,0 +1,32 @@
+<div class="auth-wrapper d-flex align-items-center justify-content-center">
+  <div class="card shadow border-0 auth-card">
+    <div class="card-body p-5">
+      <div class="text-center mb-4">
+        <h3 class="fw-bold text-primary">ConfigSync Login</h3>
+        <p class="text-muted small">Accès réservé : Admin, SuperUser, User</p>
+      </div>
+      
+      <form (ngSubmit)="onSubmit()">
+        <div class="mb-3">
+          <label class="form-label small fw-bold">Login</label>
+          <input type="text" name="username" [(ngModel)]="loginData.login" class="form-control" required>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label small fw-bold">Mot de passe</label>
+          <input type="password" name="pwd" [(ngModel)]="loginData.password" class="form-control" required>
+        </div>
+
+        @if (errorMessage) {
+          <div class="alert alert-danger py-2 small border-0">
+            <i class="bi bi-exclamation-circle me-2"></i> {{ errorMessage }}
+          </div>
+        }
+
+        <button type="submit" class="btn btn-primary w-100 py-2 shadow-sm">
+          Se connecter
+        </button>
+      </form>
+    </div>
+  </div>
+</div>

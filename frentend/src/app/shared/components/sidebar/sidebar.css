@@ -1,0 +1,46 @@
+
+/* Sidebar Style Vercel */
+.sidebar {
+  width: 240px;
+  background: #ffffff;
+  height: 100vh;
+
+  position: sticky;   /* 👈 THIS is the key */
+  top: 0;             /* 👈 stick to top */
+
+  border-right: 1px solid #eaeaea;
+  display: flex;
+  flex-direction: column;
+}
+
+.project-selector {
+  border: 1px solid #eaeaea;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.avatar-tiny { width: 24px; height: 24px; font-size: 0.7rem; display: flex; align-items: center; justify-content: center; }
+
+.nav-link {
+  color: #666666;
+  font-size: 0.85rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.2s;
+}
+
+.nav-link i { font-size: 1.1rem; color: #999; }
+
+.nav-link:hover { background: #f6f6f6; color: #000; }
+
+.nav-link.active {
+  background: #f6f6f6;
+  color: #000;
+  font-weight: 600;
+}
+
+.nav-link.active i { color: #000; }

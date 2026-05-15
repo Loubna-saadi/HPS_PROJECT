@@ -1,0 +1,620 @@
+<div class="audit-page">
+
+  <!-- PAGE HEADER -->
+  <div class="page-header">
+    <div>
+      <h5 class="page-title">Audit Logs</h5>
+      <p class="page-sub">
+        <span *ngIf="role === 'SUPERUSER'">Historique de vos opérations et celles de vos utilisateurs</span>
+        <span *ngIf="role === 'ADMIN'">Historique global de toutes les opérations</span>
+      </p>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="total-badge">{{ filtered.length }} opération{{ filtered.length !== 1 ? 's' : '' }}</span>
+    </div>
+  </div>
+
+  <!-- ACCESS DENIED for USER role -->
+  <div *ngIf="!loading && role === 'USER'" class="access-denied">
+    <i class="bi bi-lock-fill"></i>
+    <h6>Accès non autorisé</h6>
+    <p>Les logs d'audit sont réservés aux Super-Users et Administrateurs.</p>
+  </div>
+
+  <!-- LOADING -->
+  <div *ngIf="loading" class="loading-state">
+    <div class="spinner-border spinner-border-sm me-2 text-muted"></div>
+    <span class="text-muted">Chargement des logs...</span>
+  </div>
+
+  <!-- ERROR -->
+  <div *ngIf="error && !loading" class="alert-bar">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    Impossible de charger les logs. Vérifiez la connexion ORDS.
+  </div>
+
+  <div *ngIf="!loading && !error && role !== 'USER'">
+
+    <!-- FILTER BAR -->
+    <div class="filter-bar">
+      <div class="search-wrap">
+        <i class="bi bi-search search-icon"></i>
+        <input type="text" class="search-input"
+               placeholder="Rechercher un utilisateur, environnement..."
+               [(ngModel)]="searchTerm" (ngModelChange)="onFilterChange()">
+        <button *ngIf="searchTerm" class="clear-btn" (click)="searchTerm=''; onFilterChange()">
+          <i class="bi bi-x"></i>
+        </button>
+      </div>
+
+      <select class="filter-select" [(ngModel)]="filterStatus" (ngModelChange)="onFilterChange()">
+        <option value="">Tous les statuts</option>
+        <option value="TERMINE">Synchronisé</option>
+        <option value="ANOMALIES_GENEREES">Écarts détectés</option>
+        <option value="SCRIPT_GENERE">Script généré</option>
+        <option value="SCRIPT_VALIDE">Script validé</option>
+        <option value="IMPORTE">Importé</option>
+        <option value="ERREUR">Erreur</option>
+      </select>
+
+      <select class="filter-select" [(ngModel)]="filterType" (ngModelChange)="onFilterChange()">
+        <option value="">Tous les types</option>
+        <option value="COMPARAISON">Comparaison</option>
+        <option value="EXPORT">Export</option>
+        <option value="IMPORT">Import</option>
+      </select>
+
+      <select *ngIf="uniqueUsers.length > 1" class="filter-select"
+              [(ngModel)]="filterUser" (ngModelChange)="onFilterChange()">
+        <option value="">Tous les utilisateurs</option>
+        <option *ngFor="let u of uniqueUsers" [value]="u">{{ u }}</option>
+      </select>
+
+      <button *ngIf="activeFilterCount > 0" class="reset-btn" (click)="resetFilters()">
+        <i class="bi bi-x-circle me-1"></i>Réinitialiser
+        <span class="filter-count">{{ activeFilterCount }}</span>
+      </button>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div *ngIf="filtered.length === 0" class="empty-state">
+      <i class="bi bi-inbox"></i>
+      <p>Aucun résultat trouvé</p>
+      <small>Essayez de modifier vos filtres</small>
+    </div>
+
+    <!-- TABLE -->
+    <div *ngIf="filtered.length > 0" class="table-card">
+      <table class="audit-table">
+        <thead>
+          <tr>
+            <th class="sortable" (click)="onSort('id')">
+              <span>ID</span><i class="bi {{ sortIcon('id') }} sort-icon"></i>
+            </th>
+            <th class="sortable" (click)="onSort('performed_by')">
+              <span>Utilisateur</span><i class="bi {{ sortIcon('performed_by') }} sort-icon"></i>
+            </th>
+            <th *ngIf="role === 'ADMIN'">Superviseur</th>
+            <th class="sortable" (click)="onSort('type')">
+              <span>Type</span><i class="bi {{ sortIcon('type') }} sort-icon"></i>
+            </th>
+            <th>Environnements</th>
+            <th class="sortable" (click)="onSort('tables_impactees')">
+              <span>Tables</span><i class="bi {{ sortIcon('tables_impactees') }} sort-icon"></i>
+            </th>
+            <th class="sortable" (click)="onSort('nb_anomalies')">
+              <span>Anomalies</span><i class="bi {{ sortIcon('nb_anomalies') }} sort-icon"></i>
+            </th>
+            <th class="sortable" (click)="onSort('date_operation')">
+              <span>Date</span><i class="bi {{ sortIcon('date_operation') }} sort-icon"></i>
+            </th>
+            <th class="sortable" (click)="onSort('statut')">
+              <span>Statut</span><i class="bi {{ sortIcon('statut') }} sort-icon"></i>
+            </th>
+            <th style="width: 90px; text-align:center">Détails</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let log of paginated" class="log-row" (click)="openDetail(log)">
+            <td class="id-cell">#{{ log.id }}</td>
+            <td>
+              <div class="user-cell">
+                <div class="user-avatar">{{ log.performed_by?.charAt(0)?.toUpperCase() }}</div>
+                <div>
+                  <div class="user-name">{{ log.performed_by }}</div>
+                  <span class="role-badge {{ getRoleClass(log.user_role) }}">{{ log.user_role }}</span>
+                </div>
+              </div>
+            </td>
+            <td *ngIf="role === 'ADMIN'" class="text-muted small">{{ log.superuser_login ?? '—' }}</td>
+            <td><span class="type-badge">{{ log.type }}</span></td>
+            <td class="env-cell">
+              <span class="env-tag">{{ log.source_env }}</span>
+              <i class="bi bi-arrow-right mx-1 text-muted" style="font-size:0.7rem"></i>
+              <span class="env-tag">{{ log.cible_env }}</span>
+            </td>
+            <td class="text-center"><span class="count-badge">{{ log.tables_impactees }}</span></td>
+            <td class="text-center">
+              <span class="count-badge" [class.count-danger]="log.nb_anomalies > 0">{{ log.nb_anomalies }}</span>
+            </td>
+            <td class="date-cell">{{ formatDate(log.date_operation) }}</td>
+            <td>
+              <span class="status-pill {{ getStatusClass(log.statut) }}">{{ getStatusLabel(log.statut) }}</span>
+            </td>
+            <td class="text-center" (click)="$event.stopPropagation()">
+              <button class="btn-details" (click)="openDetail(log)">
+                <i class="bi bi-layout-sidebar-reverse me-1"></i>Voir
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PAGINATION -->
+    <div *ngIf="totalPages > 1" class="pagination-bar">
+      <button class="page-btn" [disabled]="page === 1" (click)="goToPage(page - 1)">
+        <i class="bi bi-chevron-left"></i>
+      </button>
+      <button *ngIf="pageNumbers[0] > 1" class="page-btn" (click)="goToPage(1)">1</button>
+      <span *ngIf="pageNumbers[0] > 2" class="page-ellipsis">…</span>
+      <button *ngFor="let p of pageNumbers" class="page-btn" [class.active]="p === page" (click)="goToPage(p)">{{ p }}</button>
+      <span *ngIf="pageNumbers[pageNumbers.length - 1] < totalPages - 1" class="page-ellipsis">…</span>
+      <button *ngIf="pageNumbers[pageNumbers.length - 1] < totalPages" class="page-btn" (click)="goToPage(totalPages)">{{ totalPages }}</button>
+      <button class="page-btn" [disabled]="page === totalPages" (click)="goToPage(page + 1)">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+      <span class="page-info">{{ (page - 1) * pageSize + 1 }}–{{ pageEnd }} sur {{ filtered.length }}</span>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- DETAIL SLIDE-OVER PANEL                                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="detail-backdrop"
+     [class.detail-backdrop-visible]="detailOpen && !detailDrawerOpen && !showImportConfirm"
+     (click)="closeDetail()"></div>
+
+<aside class="detail-slideover" [class.detail-slideover-open]="detailOpen" *ngIf="detailLog">
+
+  <!-- ── Header ── -->
+  <div class="dso-header">
+    <div class="dso-header-left">
+      <button class="dso-close-btn" (click)="closeDetail()"><i class="bi bi-x-lg"></i></button>
+      <div>
+        <div class="dso-title">Résultats de l'opération</div>
+        <div class="dso-subtitle">
+          <span class="dso-op-id">#{{ detailLog.id }}</span>
+          <span class="dso-sep">·</span>
+          <span class="dso-user-chip"><i class="bi bi-person-fill me-1"></i>{{ detailLog.performed_by }}</span>
+          <span class="dso-sep">·</span>
+          <span class="dso-env-src">{{ detailLog.source_env }}</span>
+          <i class="bi bi-arrow-right mx-1" style="font-size:.65rem; color:#94a3b8"></i>
+          <span class="dso-env-cbl">{{ detailLog.cible_env }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="dso-tabs">
+      <button class="dso-tab" [class.dso-tab-active]="detailTab === 'results'" (click)="detailTab = 'results'">
+        <i class="bi bi-table me-1"></i>Résultats
+        <span class="dso-tab-count" *ngIf="detailGroups.length > 0">{{ detailGroups.length }}</span>
+      </button>
+      <button class="dso-tab" [class.dso-tab-active]="detailTab === 'script'" (click)="detailTab = 'script'">
+        <i class="bi bi-file-earmark-code me-1"></i>Script
+        <span class="dso-tab-badge" *ngIf="detailScript"><i class="bi bi-check-circle-fill"></i></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Stats ribbon ── -->
+  <div class="dso-stats-ribbon" *ngIf="!detailLoading && detailTab === 'results'">
+    <div class="dso-stat dso-stat-groups">
+      <span class="dso-stat-num">{{ detailGroups.length }}</span>
+      <span class="dso-stat-lbl">enregistrements</span>
+    </div>
+    <div class="dso-ribbon-sep"></div>
+    <div class="dso-stat dso-stat-diff">
+      <span class="dso-stat-num">{{ detailStats.different }}</span>
+      <span class="dso-stat-lbl">différences</span>
+    </div>
+    <div class="dso-ribbon-sep"></div>
+    <div class="dso-stat dso-stat-absent">
+      <span class="dso-stat-num">{{ detailStats.missingCible }}</span>
+      <span class="dso-stat-lbl">absents cible</span>
+    </div>
+    <div class="dso-ribbon-sep"></div>
+    <div class="dso-stat dso-stat-src">
+      <span class="dso-stat-num">{{ detailStats.missingSource }}</span>
+      <span class="dso-stat-lbl">absents source</span>
+    </div>
+    <div class="dso-ribbon-sep"></div>
+    <span class="dso-stat-date ms-auto">
+      <i class="bi bi-clock me-1"></i>{{ formatDate(detailLog.date_operation) }}
+    </span>
+  </div>
+
+  <!-- ── Body ── -->
+  <div class="dso-body">
+
+    <!-- Loading -->
+    <div *ngIf="detailLoading" class="dso-loading">
+      <span class="spinner-border text-primary"></span>
+      <p class="mt-3 mb-0 text-muted" style="font-size:.84rem">Chargement des résultats #{{ detailLog.id }}…</p>
+    </div>
+
+    <!-- Error -->
+    <div *ngIf="detailError && !detailLoading" class="dso-error">
+      <i class="bi bi-exclamation-triangle me-2"></i>{{ detailError }}
+    </div>
+
+    <!-- ══ TAB: RESULTS ══ -->
+    <ng-container *ngIf="!detailLoading && detailTab === 'results'">
+      <div *ngIf="detailGroups.length === 0 && !detailError" class="dso-empty-sync">
+        <div class="dso-empty-icon"><i class="bi bi-check2-all"></i></div>
+        <h5>Synchronisation parfaite</h5>
+        <p class="text-muted">Aucun écart détecté lors de cette opération.</p>
+      </div>
+
+      <div *ngIf="detailGroups.length > 0" class="dso-results-wrap">
+        <table class="dso-matrix-table">
+          <thead>
+            <tr>
+              <th>ENREGISTREMENT (CLÉ)</th>
+              <th>TABLE</th>
+              <th class="text-center">COLONNES</th>
+              <th class="text-center">STATUT</th>
+              <th style="width:80px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <ng-container *ngFor="let tg of detailTableGroups; trackBy: trackByTable">
+              <tr class="dso-tbl-grp-row" (click)="toggleDetailTableGroup(tg)">
+                <td colspan="5" class="dso-tbl-grp-cell">
+                  <div class="dso-tbl-grp-inner">
+                    <i class="bi dso-chevron-icon" [ngClass]="tg.collapsed ? 'bi-chevron-right' : 'bi-chevron-down'"></i>
+                    <i class="bi bi-table dso-tbl-icon"></i>
+                    <span class="dso-tbl-name">{{ tg.table }}</span>
+                    <span class="dso-tbl-pill">{{ tg.groups.length }} clé{{ tg.groups.length > 1 ? 's' : '' }}</span>
+                  </div>
+                </td>
+              </tr>
+              <ng-container *ngIf="!tg.collapsed">
+                <tr *ngFor="let grp of tg.groups; trackBy: trackByGroup" class="dso-grp-row" (click)="openInnerDrawer(grp)">
+                  <td class="dso-grp-key">{{ grp.cle }}</td>
+                  <td class="text-muted" style="font-size:.79rem">{{ grp.table }}</td>
+                  <td class="text-center"><span class="dso-col-badge">{{ grp.columns.length }}</span></td>
+                  <td class="text-center">
+                    <span class="dso-grp-status {{ getGroupStatusClass(grp.worst) }}">{{ getGroupStatusLabel(grp.worst) }}</span>
+                  </td>
+                  <td class="text-center" (click)="$event.stopPropagation()">
+                    <button class="dso-detail-btn" (click)="openInnerDrawer(grp)">
+                      <i class="bi bi-eye me-1"></i>Détail
+                    </button>
+                  </td>
+                </tr>
+              </ng-container>
+            </ng-container>
+          </tbody>
+        </table>
+      </div>
+    </ng-container>
+
+    <!-- ══ TAB: SCRIPT ══ -->
+    <ng-container *ngIf="!detailLoading && detailTab === 'script'">
+
+      <!-- No script stored -->
+      <div *ngIf="!detailScript" class="dso-no-script">
+        <i class="bi bi-file-earmark-x"></i>
+        <h6>Aucun script enregistré</h6>
+        <p>Aucun script de correction n'a été sauvegardé pour cette opération.</p>
+      </div>
+
+      <!-- Script viewer + actions -->
+      <div *ngIf="detailScript" class="dso-script-wrap">
+
+        <!-- Script meta bar -->
+        <div class="dso-script-meta">
+          <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="dso-script-id">Script #{{ detailScript.id }}</span>
+            <span class="dso-script-dir">
+              <i class="bi bi-arrow-right-circle me-1"></i>
+              Règle : <strong>{{ detailScript.direction?.toUpperCase() }}</strong> impose
+            </span>
+            <span class="dso-script-scope">Périmètre : <strong>{{ detailScript.scope ?? 'all' }}</strong></span>
+
+            <!-- Live state badges -->
+            <span class="script-status-badge script-badge-valid"
+                  *ngIf="validateState === 'valid'">
+              <i class="bi bi-patch-check-fill me-1"></i>Validé
+              <span *ngIf="validateStmtsChecked > 0" class="ms-1 opacity-75">({{ validateStmtsChecked }} stmt)</span>
+            </span>
+            <span class="script-status-badge script-badge-invalid"
+                  *ngIf="validateState === 'invalid'">
+              <i class="bi bi-x-octagon-fill me-1"></i>Invalide
+            </span>
+            <span class="script-status-badge script-badge-imported"
+                  *ngIf="importState === 'done' && importResult?.success">
+              <i class="bi bi-cloud-check-fill me-1"></i>Importé → {{ importResult?.environment }}
+            </span>
+          </div>
+
+          <!-- Action buttons row -->
+          <div class="dso-script-actions">
+            <button class="dso-action-btn dso-btn-dl" (click)="downloadScript()">
+              <i class="bi bi-download me-1"></i>Télécharger .sql
+            </button>
+
+            <!-- Validate (ADMIN only) -->
+            <button *ngIf="canValidateOrImport"
+                    class="dso-action-btn dso-btn-validate"
+                    [class.dso-btn-validate-done]="validateState === 'valid'"
+                    [disabled]="validateState === 'validating'"
+                    (click)="validateScript()">
+              <span *ngIf="validateState === 'validating'"
+                    class="spinner-border spinner-border-sm me-1"></span>
+              <i *ngIf="validateState !== 'validating'" class="bi me-1"
+                 [ngClass]="validateState === 'valid' ? 'bi-patch-check-fill' : 'bi-shield-check'"></i>
+              {{ validateState === 'validating' ? 'Validation...' : validateState === 'valid' ? 'Re-valider' : 'Valider' }}
+            </button>
+
+            <!-- Import (ADMIN only) -->
+            <button *ngIf="canValidateOrImport"
+                    class="dso-action-btn dso-btn-import"
+                    [disabled]="importState === 'importing'"
+                    (click)="requestImport()">
+              <span *ngIf="importState === 'importing'"
+                    class="spinner-border spinner-border-sm me-1"></span>
+              <i *ngIf="importState !== 'importing'" class="bi bi-cloud-upload-fill me-1"></i>
+              {{ importState === 'importing' ? 'Exécution...' : 'Importer dans env.' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Validation result banners ──
+             FIX: separate valid-with-warnings / valid-clean / invalid-with-errors / server-error
+             Do NOT show "0 erreur(s) — corrigez" when there are actually 0 errors. -->
+
+        <!-- Valid, no warnings -->
+        <div *ngIf="validateState === 'valid' && validateWarnings.length === 0"
+             class="script-result-banner banner-ok">
+          <i class="bi bi-check-circle-fill me-2"></i>
+          <span>
+            Script syntaxiquement valide
+            <ng-container *ngIf="validateStmtsChecked > 0">
+              — {{ validateStmtsChecked }} instruction(s) vérifiée(s)
+            </ng-container>
+            · Aucune anomalie détectée.
+          </span>
+        </div>
+
+        <!-- Valid, with warnings -->
+        <div *ngIf="validateState === 'valid' && validateWarnings.length > 0"
+             class="script-result-banner banner-warn">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <span>Script valide avec {{ validateWarnings.length }} avertissement(s).</span>
+          <ul class="script-issue-list">
+            <li *ngFor="let w of validateWarnings">{{ w }}</li>
+          </ul>
+        </div>
+
+        <!-- Invalid — only show error list when there are actual errors -->
+        <div *ngIf="validateState === 'invalid' && validateErrors.length > 0"
+             class="script-result-banner banner-err">
+          <i class="bi bi-x-octagon-fill me-2"></i>
+          <span>{{ validateErrors.length }} erreur(s) de syntaxe — corrigez avant l'import.</span>
+          <ul class="script-issue-list">
+            <li *ngFor="let e of validateErrors">{{ e }}</li>
+          </ul>
+        </div>
+
+        <!-- Invalid but no errors array — server returned valid=0 with empty errors (edge case) -->
+        <div *ngIf="validateState === 'invalid' && validateErrors.length === 0"
+             class="script-result-banner banner-warn">
+          <i class="bi bi-question-circle-fill me-2"></i>
+          <span>
+            Le serveur a renvoyé une réponse ambiguë (valid=0 sans détail d'erreur).
+            Le script a probablement passé la validation — vous pouvez tenter l'import.
+          </span>
+        </div>
+
+        <!-- Server error during validation -->
+        <div *ngIf="validateState === 'error'"
+             class="script-result-banner banner-err">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          <span>
+            Erreur serveur lors de la validation :
+            <span *ngIf="validateErrors.length > 0">{{ validateErrors[0] }}</span>
+            <span *ngIf="validateErrors.length === 0">Réessayez ou vérifiez les logs ORDS.</span>
+          </span>
+        </div>
+
+        <!-- ── Import result banners ── -->
+        <div *ngIf="importState === 'done' && importResult"
+             class="script-result-banner"
+             [class.banner-ok]="importResult.success"
+             [class.banner-err]="!importResult.success">
+          <div class="import-result-header">
+            <i class="bi me-2"
+               [ngClass]="importResult.success ? 'bi-cloud-check-fill' : 'bi-cloud-slash-fill'"></i>
+            <span *ngIf="importResult.success">
+              Import réussi dans <strong>{{ importResult.environment }}</strong> —
+              {{ importResult.statementsRun }} instruction(s) exécutée(s).
+            </span>
+            <span *ngIf="!importResult.success">
+              Import échoué dans <strong>{{ importResult.environment }}</strong>
+              ({{ importResult.statementsRun }} instruction(s) traitée(s)).
+            </span>
+          </div>
+          <ul *ngIf="importResult.errors.length > 0" class="script-issue-list mt-1">
+            <li *ngFor="let e of importResult.errors">{{ e }}</li>
+          </ul>
+        </div>
+
+        <div *ngIf="importState === 'error'" class="script-result-banner banner-err">
+          <i class="bi bi-cloud-slash-fill me-2"></i>
+          <span>{{ importError }}</span>
+        </div>
+
+        <!-- ── Script code viewer ── -->
+        <div class="dso-script-editor-wrap">
+          <div class="dso-script-line-numbers" aria-hidden="true">
+            <span *ngFor="let line of detailScript.contenu_sql.split('\n'); let i = index">{{ i + 1 }}</span>
+          </div>
+          <pre class="dso-script-pre">{{ detailScript.contenu_sql }}</pre>
+        </div>
+
+      </div><!-- /dso-script-wrap -->
+    </ng-container>
+
+  </div><!-- /dso-body -->
+
+</aside>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- IMPORT CONFIRMATION MODAL                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="modal-overlay"
+     [class.modal-overlay-visible]="showImportConfirm"
+     (click)="cancelImport()"></div>
+
+<div class="confirm-modal" [class.confirm-modal-visible]="showImportConfirm" *ngIf="showImportConfirm">
+  <div class="confirm-modal-inner" (click)="$event.stopPropagation()">
+
+    <div class="confirm-icon-ring">
+      <i class="bi bi-cloud-upload-fill"></i>
+    </div>
+
+    <h5 class="confirm-title">Importer le script</h5>
+    <p class="confirm-sub">
+      Vous êtes sur le point d'exécuter le script de correction dans un environnement de base de données.
+      Cette action est <strong>irréversible</strong> sans sauvegarde préalable.
+    </p>
+
+    <!-- Validation warning if not validated yet -->
+    <div class="confirm-not-validated-warn" *ngIf="validateState !== 'valid'">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      Le script n'a pas encore été validé. Il est recommandé de valider avant d'importer.
+    </div>
+
+    <!-- Environment picker -->
+    <div class="confirm-env-picker">
+      <label class="confirm-env-label">Environnement cible</label>
+      <div class="confirm-env-options">
+        <label *ngFor="let env of availableEnvsForImport"
+               class="confirm-env-option"
+               [class.confirm-env-option-active]="importTargetEnv === env"
+               (click)="importTargetEnv = env">
+          <span class="confirm-env-radio">
+            <span class="confirm-env-dot" *ngIf="importTargetEnv === env"></span>
+          </span>
+          <span class="confirm-env-name" [class.env-danger]="env === 'PROD'">{{ env }}</span>
+          <span class="confirm-env-prod-badge" *ngIf="env === 'PROD'">PROD</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- PROD extra warning -->
+    <div class="confirm-prod-warning" *ngIf="importTargetEnv === 'PROD'">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i>
+      <span>Vous ciblez l'environnement de <strong>production</strong>. Assurez-vous que le script a bien été validé.</span>
+    </div>
+
+    <!-- Operation context -->
+    <div class="confirm-context">
+      <span class="confirm-ctx-item">
+        <i class="bi bi-hash me-1"></i>Opération #{{ detailLog?.id }}
+      </span>
+      <span class="confirm-ctx-item">
+        <i class="bi bi-file-earmark-code me-1"></i>Script #{{ detailScript?.id }}
+      </span>
+      <span class="confirm-ctx-item" *ngIf="validateState === 'valid'">
+        <i class="bi bi-patch-check-fill text-success me-1"></i>Script validé
+      </span>
+      <span class="confirm-ctx-item confirm-ctx-warn" *ngIf="validateState !== 'valid'">
+        <i class="bi bi-exclamation-triangle me-1"></i>Non validé
+      </span>
+    </div>
+
+    <!-- Modal actions -->
+    <div class="confirm-actions">
+      <button class="confirm-btn-cancel" (click)="cancelImport()">
+        <i class="bi bi-x me-1"></i>Annuler
+      </button>
+      <button class="confirm-btn-execute"
+              [class.confirm-btn-execute-danger]="importTargetEnv === 'PROD'"
+              [disabled]="!importTargetEnv"
+              (click)="confirmImport()">
+        <i class="bi bi-play-fill me-1"></i>
+        Exécuter dans {{ importTargetEnv || '…' }}
+      </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+<!-- INNER DIFF DRAWER                                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════════ -->
+
+<div class="inner-drawer-backdrop"
+     [class.inner-drawer-backdrop-visible]="detailDrawerOpen"
+     (click)="closeInnerDrawer()"></div>
+
+<aside class="inner-drawer" [class.inner-drawer-open]="detailDrawerOpen" *ngIf="detailDrawerGroup">
+
+  <div class="inner-drawer-header">
+    <button class="dso-close-btn" (click)="closeInnerDrawer()"><i class="bi bi-x-lg"></i></button>
+    <div>
+      <div class="inner-drawer-title">Détail des colonnes</div>
+      <div class="inner-drawer-subtitle">
+        <span class="dso-env-src">{{ detailDrawerGroup.table }}</span>
+        <span class="dso-sep">·</span>
+        <span class="fw-mono" style="font-size:.72rem; color:#475569">{{ detailDrawerGroup.cle }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="inner-drawer-body">
+    <div *ngFor="let col of detailDrawerGroup.columns; trackBy: trackByCol" class="inner-diff-card">
+      <div class="inner-diff-header">
+        <span class="inner-col-tag">{{ col.type_difference }}</span>
+        <span class="ms-auto d-flex align-items-center gap-1">
+          <span class="status-dot {{ getColStatusClass(col.alerte_statut) }}"></span>
+          <span style="font-size:.7rem; font-weight:600">{{ col.alerte_statut }}</span>
+        </span>
+      </div>
+      <div class="inner-diff-values">
+        <div class="inner-diff-val inner-val-src">
+          <span class="inner-env-label" *ngIf="detailLog">{{ detailLog.source_env }}</span>
+          <span class="inner-val-content">{{ col.valeur_source ?? 'NULL' }}</span>
+        </div>
+        <div class="inner-diff-arrow"><i class="bi bi-arrow-right"></i></div>
+        <div class="inner-diff-val inner-val-cbl">
+          <span class="inner-env-label" *ngIf="detailLog">{{ detailLog.cible_env }}</span>
+          <span class="inner-val-content">{{ col.valeur_cible ?? 'NULL' }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="detailDrawerGroup.columns.length === 0" class="inner-empty">
+      <i class="bi bi-check2-circle text-success me-2"></i>
+      Aucun écart sur cet enregistrement.
+    </div>
+  </div>
+
+  <div class="inner-drawer-footer">
+    <button class="dso-close-action" (click)="closeInnerDrawer()">
+      <i class="bi bi-arrow-left me-1"></i>Retour
+    </button>
+    <span style="font-size:.69rem; color:#94a3b8">{{ detailDrawerGroup.columns.length }} colonne(s) analysée(s)</span>
+  </div>
+
+</aside>
