@@ -11,24 +11,27 @@ export class AuthService {
   private http = inject(HttpClient);
   private router = inject(Router);
   private platformId = inject(PLATFORM_ID); // Injecte l'ID de plateforme
-  private apiUrl = 'http://localhost:8080/ords/v1/auth/login';
+  private baseUrl = 'http://localhost:3000/v1/auth';
 
- login(loginSaisi: string, mdpSaisi: string): Observable<any> {
-  const body = { login: loginSaisi, password: mdpSaisi };
-  return this.http.post<any>(this.apiUrl, body).pipe(
-    tap(response => {
-      if (isPlatformBrowser(this.platformId) && response) {
-        // On stocke TOUT ce qu'on voit sur Postman
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('role', response.role);
-        localStorage.setItem('username', response.login); // Postman dit "login"
-        localStorage.setItem('currentUser', JSON.stringify(response)); 
-        
-        console.log("Données stockées avec succès :", response);
-      }
-    })
-  );
-}
+  private storeSession(response: any): void {
+    localStorage.setItem('token',       response.token);
+    localStorage.setItem('role',        response.role);
+    localStorage.setItem('username',    response.login);
+    localStorage.setItem('nom',         response.nom || '');
+    localStorage.setItem('currentUser', JSON.stringify(response));
+  }
+
+  signup(login: string, password: string, nom: string = ''): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/signup`, { login, password, nom }).pipe(
+      tap(response => { if (isPlatformBrowser(this.platformId) && response) this.storeSession(response); })
+    );
+  }
+
+  login(loginSaisi: string, mdpSaisi: string): Observable<any> {
+    return this.http.post<any>(`${this.baseUrl}/login`, { login: loginSaisi, password: mdpSaisi }).pipe(
+      tap(response => { if (isPlatformBrowser(this.platformId) && response) this.storeSession(response); })
+    );
+  }
 
   logout(): void {
     if (isPlatformBrowser(this.platformId)) {
@@ -54,6 +57,13 @@ export class AuthService {
   getUsername(): string | null {
     if (isPlatformBrowser(this.platformId)) {
       return localStorage.getItem('username');
+    }
+    return null;
+  }
+
+  getDisplayName(): string | null {
+    if (isPlatformBrowser(this.platformId)) {
+      return localStorage.getItem('nom') || localStorage.getItem('username');
     }
     return null;
   }

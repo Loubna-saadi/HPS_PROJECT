@@ -7,7 +7,7 @@ import { Observable } from 'rxjs';
 })
 export class AuditService {
   // Remplace 'ton_schema' par le nom de ton schéma Oracle
-  private apiUrl = 'http://localhost:8080/ords/v1/audit'; 
+  private apiUrl = 'http://localhost:3000/v1/audit';
 
   constructor(private http: HttpClient) { }
 

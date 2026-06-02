@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-const ORDS = 'http://localhost:8080/ords/v1';
+const ORDS = 'http://localhost:3000/v1';
 
 @Injectable({ providedIn: 'root' })
 export class CompareService {

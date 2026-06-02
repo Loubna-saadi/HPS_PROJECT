@@ -5,7 +5,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { RouterModule } from '@angular/router';
 import { AuthService } from '../../core/services/auth';
 
-const ORDS = 'http://localhost:8080/ords/v1';
+const ORDS = 'http://localhost:3000/v1';
 
 interface AuditLog {
   id:               number;

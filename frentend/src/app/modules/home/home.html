@@ -4,7 +4,7 @@
 
   <nav class="navbar">
     <div class="logo">Config<span>Sync</span></div>
-    <button class="btn-glass" (click)="handleAccess()">Espace Client</button>
+    <button class="btn-glass" (click)="handleAccess()">Mon espace</button>
   </nav>
 
   <section class="hero">
@@ -12,9 +12,13 @@
     <p class="subtitle">La plateforme intelligente de comparaison et de déploiement entre DEV et TEST pour les administrateurs de bases de données.</p>
     
     <div class="cta-group">
-      <button class="btn-primary-glow" (click)="handleAccess()">
-        Démarrer l'analyse
-        <i class="bi bi-arrow-right-short"></i>
+      <button class="btn-primary-glow" (click)="goToLogin()">
+        Se connecter
+        <i class="bi bi-box-arrow-in-right"></i>
+      </button>
+      <button class="btn-glass" (click)="goToSignup()">
+        Créer un compte
+        <i class="bi bi-person-plus"></i>
       </button>
     </div>
   </section>

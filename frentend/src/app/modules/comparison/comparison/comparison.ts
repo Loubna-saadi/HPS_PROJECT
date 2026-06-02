@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 import { CompareService } from '../../../core/services/compare.service';
 import { AuthService } from '../../../core/services/auth';
 
-const ORDS = 'http://localhost:8080/ords/v1';
+const ORDS = 'http://localhost:3000/v1';
 
 interface TableColumn {
   column_name: string;

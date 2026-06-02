@@ -1,5 +1,4 @@
-import { Component, inject, OnInit, PLATFORM_ID } from '@angular/core';
-import { isPlatformBrowser } from '@angular/common';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 import { AuthService } from '../../../core/services/auth';
 import { CommonModule } from '@angular/common';
@@ -11,22 +10,12 @@ import { CommonModule } from '@angular/common';
   templateUrl: './sidebar.html',
   styleUrl: './sidebar.css',
 })
-export class SidebarComponent implements OnInit {
+export class SidebarComponent {
   private authService = inject(AuthService);
-  private platformId = inject(PLATFORM_ID);
 
-  userName: string | null = '';
-  userRole: string | null = '';
+  get isLoggedIn():   boolean         { return this.authService.isLoggedIn(); }
+  get displayName():  string | null   { return this.authService.getDisplayName(); }
+  get userRole():     string | null   { return this.authService.getRole(); }
 
-  ngOnInit() {
-    // On ne récupère les infos que si on est dans le navigateur
-    if (isPlatformBrowser(this.platformId)) {
-      this.userName = this.authService.getUsername();
-      this.userRole = this.authService.getRole();
-    }
-  }
-
-  onLogout() {
-    this.authService.logout();
-  }
+  onLogout() { this.authService.logout(); }
 }

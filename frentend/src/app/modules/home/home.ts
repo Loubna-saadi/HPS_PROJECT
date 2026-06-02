@@ -14,12 +14,9 @@ export class HomeComponent {
 
   handleAccess() {
     const user = localStorage.getItem('currentUser');
-    if (user) {
-      // Session active -> Direction Dashboard
-      this.router.navigate(['/dashboard']);
-    } else {
-      // Pas de session -> Direction Login
-      this.router.navigate(['/login']);
-    }
+    this.router.navigate([user ? '/dashboard' : '/login']);
   }
+
+  goToLogin()  { this.router.navigate(['/login']);  }
+  goToSignup() { this.router.navigate(['/signup']); }
 }

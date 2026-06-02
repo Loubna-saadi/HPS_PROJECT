@@ -6,7 +6,7 @@ import { HttpClient } from '@angular/common/http';
 import { ExportService } from '../../../core/services/export.service';
 import { AuthService } from '../../../core/services/auth';
 
-const ORDS = 'http://localhost:8080/ords/v1';
+const ORDS = 'http://localhost:3000/v1';
 
 // ── Interfaces ───────────────────────────────────────────────────────────────
 

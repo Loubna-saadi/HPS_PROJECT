@@ -1,0 +1,392 @@
+<div class="cp-page">
+
+  <!-- ══════════════════════════════════════════════
+       PAGE HEADER
+  ══════════════════════════════════════════════ -->
+  <div class="cp-header">
+    <div class="cp-header-left">
+      <div class="cp-header-icon">
+        <i class="bi bi-diagram-3-fill"></i>
+      </div>
+      <div>
+        <h5 class="cp-title">Connection Profiles</h5>
+        <p class="cp-sub">
+          Configuration des accès base de données Oracle par environnement.
+          Chaque profil génère automatiquement le lien DB correspondant.
+        </p>
+      </div>
+    </div>
+    <button *ngIf="canEdit && unconfiguredEnvs.length > 0"
+            class="btn-add-profile" (click)="openCreate()">
+      <i class="bi bi-plus-lg me-2"></i>Ajouter un profil
+    </button>
+  </div>
+
+  <!-- Access denied -->
+  <div *ngIf="!canEdit" class="cp-access-denied">
+    <i class="bi bi-lock-fill"></i>
+    <h6>Accès restreint</h6>
+    <p>La configuration des profils de connexion est réservée aux Super-Users et Administrateurs.</p>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading && canEdit" class="cp-loading">
+    <span class="spinner-border text-primary"></span>
+    <p class="text-muted mt-3 mb-0">Chargement des profils…</p>
+  </div>
+
+  <!-- Error -->
+  <div *ngIf="loadError && !loading" class="cp-error-banner">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ loadError }}
+    <button class="cp-retry-btn" (click)="loadProfiles()">
+      <i class="bi bi-arrow-repeat me-1"></i>Réessayer
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       OVERVIEW STRIP (summary of all 5 envs)
+  ══════════════════════════════════════════════ -->
+  <div *ngIf="!loading && canEdit" class="cp-env-strip">
+    <div *ngFor="let env of ['DEV','DEV_VAL','UAT','SIT','PROD']; trackBy: trackByStr"
+         class="cp-env-pill"
+         [class.cp-env-configured]="configuredEnvCodes.includes(env)"
+         [class.cp-env-missing]="!configuredEnvCodes.includes(env)"
+         (click)="!configuredEnvCodes.includes(env) && canEdit ? openCreate(env) : null">
+      <span class="cp-env-dot" [style.background]="envColor(env)"></span>
+      <span class="cp-env-code">{{ env }}</span>
+      <i *ngIf="configuredEnvCodes.includes(env)"  class="bi bi-check-circle-fill cp-env-check"></i>
+      <i *ngIf="!configuredEnvCodes.includes(env)" class="bi bi-plus-circle       cp-env-plus"></i>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
+       PROFILE CARDS GRID
+  ══════════════════════════════════════════════ -->
+  <div *ngIf="!loading && canEdit" class="cp-grid">
+
+    <!-- Configured profiles -->
+    <div *ngFor="let p of profiles; trackBy: trackByEnv" class="cp-card">
+
+      <!-- Card color accent bar -->
+      <div class="cp-card-accent" [style.background]="envColor(p.env_code)"></div>
+
+      <!-- Card header -->
+      <div class="cp-card-header">
+        <div class="cp-card-header-left">
+          <div class="cp-env-badge" [style.background]="envColor(p.env_code) + '18'"
+               [style.color]="envColor(p.env_code)">
+            {{ p.env_code }}
+          </div>
+          <div>
+            <div class="cp-card-env-label">{{ envLabel(p.env_code) }}</div>
+            <div class="cp-card-link-name" *ngIf="p.db_link">
+              <i class="bi bi-link-45deg me-1"></i>{{ p.db_link }}
+              <span class="cp-link-pill" [class.cp-link-ok]="p.link_exists > 0"
+                    [class.cp-link-missing]="p.link_exists === 0">
+                {{ p.link_exists > 0 ? 'actif' : 'absent' }}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Last test badge -->
+        <div class="cp-test-badge"
+             [class.cp-test-ok]="p.last_test_ok === 1"
+             [class.cp-test-fail]="p.last_test_ok === 0"
+             [class.cp-test-untested]="p.last_test_ok === null">
+          <i class="bi"
+             [ngClass]="p.last_test_ok === 1 ? 'bi-wifi'
+                      : p.last_test_ok === 0 ? 'bi-wifi-off'
+                      : 'bi-question-circle'"></i>
+          {{ p.last_test_ok === 1 ? 'Connecté' : p.last_test_ok === 0 ? 'Échec' : 'Non testé' }}
+        </div>
+      </div>
+
+      <!-- Connection details grid -->
+      <div class="cp-details-grid">
+        <div class="cp-detail-item">
+          <span class="cp-detail-label"><i class="bi bi-hdd-network me-1"></i>Hôte</span>
+          <span class="cp-detail-value cp-mono">{{ p.host }}</span>
+        </div>
+        <div class="cp-detail-item">
+          <span class="cp-detail-label"><i class="bi bi-broadcast-pin me-1"></i>Port</span>
+          <span class="cp-detail-value cp-mono">{{ p.port }}</span>
+        </div>
+        <div class="cp-detail-item">
+          <span class="cp-detail-label"><i class="bi bi-database me-1"></i>Service</span>
+          <span class="cp-detail-value cp-mono">{{ p.service_name }}</span>
+        </div>
+        <div class="cp-detail-item">
+          <span class="cp-detail-label"><i class="bi bi-person-fill me-1"></i>Utilisateur</span>
+          <span class="cp-detail-value cp-mono">{{ p.db_username }}</span>
+        </div>
+        <div class="cp-detail-item cp-detail-full" *ngIf="p.description">
+          <span class="cp-detail-label"><i class="bi bi-card-text me-1"></i>Description</span>
+          <span class="cp-detail-value">{{ p.description }}</span>
+        </div>
+      </div>
+
+      <!-- Live test result banner -->
+      <div *ngIf="getTestResult(p.env_code) as tr" class="cp-test-result"
+           [class.cp-test-result-ok]="tr.ok === 1"
+           [class.cp-test-result-fail]="tr.ok === 0">
+        <i class="bi me-2"
+           [ngClass]="tr.ok === 1 ? 'bi-check-circle-fill' : 'bi-x-circle-fill'"></i>
+        <span *ngIf="tr.ok === 1">
+          Connexion établie en <strong>{{ tr.latency_ms }} ms</strong>
+        </span>
+        <span *ngIf="tr.ok === 0">{{ tr.message }}</span>
+      </div>
+
+      <!-- Card footer / actions -->
+      <div class="cp-card-footer">
+        <span class="cp-footer-date">
+          <i class="bi bi-clock me-1"></i>
+          <span *ngIf="p.last_tested_at">Testé {{ formatDate(p.last_tested_at) }}</span>
+          <span *ngIf="!p.last_tested_at">Mis à jour {{ formatDate(p.updated_at) }}</span>
+        </span>
+
+        <div class="cp-card-actions">
+          <!-- Test button -->
+          <button class="cp-btn cp-btn-test"
+                  [disabled]="getTestState(p.env_code) === 'testing'"
+                  (click)="testConnection(p.env_code)">
+            <span *ngIf="getTestState(p.env_code) === 'testing'"
+                  class="spinner-border spinner-border-sm"></span>
+            <i *ngIf="getTestState(p.env_code) !== 'testing'" class="bi bi-wifi"></i>
+            {{ getTestState(p.env_code) === 'testing' ? 'Test…' : 'Tester' }}
+          </button>
+
+          <!-- Edit button -->
+          <button *ngIf="canEdit" class="cp-btn cp-btn-edit" (click)="openEdit(p)">
+            <i class="bi bi-pencil-fill me-1"></i>Modifier
+          </button>
+
+          <!-- Delete button -->
+          <button *ngIf="canEdit" class="cp-btn cp-btn-delete" (click)="requestDelete(p)">
+            <i class="bi bi-trash3-fill"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- "Add" ghost cards for unconfigured envs -->
+    <div *ngFor="let env of unconfiguredEnvs; trackBy: trackByStr"
+         class="cp-card cp-card-empty" (click)="canEdit ? openCreate(env) : null">
+      <div class="cp-card-accent" [style.background]="envColor(env) + '55'"></div>
+      <div class="cp-empty-inner">
+        <div class="cp-empty-icon" [style.color]="envColor(env)">
+          <i class="bi bi-plus-circle-dotted"></i>
+        </div>
+        <div class="cp-empty-label" [style.color]="envColor(env)">{{ env }}</div>
+        <div class="cp-empty-sub">{{ envLabel(env) }}</div>
+        <span class="cp-empty-cta">Configurer ce profil</span>
+      </div>
+    </div>
+
+  </div><!-- /cp-grid -->
+
+</div><!-- /cp-page -->
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     FORM DRAWER
+══════════════════════════════════════════════════════════════ -->
+
+<div class="cp-backdrop" [class.cp-backdrop-visible]="drawerOpen" (click)="closeDrawer()"></div>
+
+<aside class="cp-drawer" [class.cp-drawer-open]="drawerOpen">
+
+  <div class="cp-drawer-header">
+    <div class="cp-drawer-header-left">
+      <button class="cp-drawer-close" (click)="closeDrawer()">
+        <i class="bi bi-x-lg"></i>
+      </button>
+      <div>
+        <div class="cp-drawer-title">
+          {{ formMode === 'create' ? 'Nouveau profil de connexion' : 'Modifier le profil' }}
+        </div>
+        <div class="cp-drawer-sub" *ngIf="form.env_code">
+          <span class="cp-env-dot-sm" [style.background]="envColor(form.env_code)"></span>
+          {{ form.env_code }} · {{ envLabel(form.env_code) }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save result banner -->
+  <div *ngIf="saveState === 'saved'" class="cp-save-banner cp-save-ok">
+    <i class="bi bi-check-circle-fill me-2"></i>
+    Profil sauvegardé et lien DB recréé avec succès.
+  </div>
+  <div *ngIf="saveState === 'error'" class="cp-save-banner cp-save-err">
+    <i class="bi bi-exclamation-triangle-fill me-2"></i>
+    {{ saveError || 'Erreur lors de la sauvegarde.' }}
+  </div>
+
+  <div class="cp-drawer-body">
+
+    <!-- ENV CODE (create only — readonly in edit) -->
+    <div class="cp-field-group" *ngIf="formMode === 'create'">
+      <label class="cp-label">
+        <i class="bi bi-layers me-1"></i>Environnement <span class="cp-req">*</span>
+      </label>
+      <select [(ngModel)]="form.env_code" class="cp-select">
+        <option value="" disabled>Sélectionner…</option>
+        <option *ngFor="let env of availableEnvsForForm(); trackBy: trackByStr" [value]="env">
+          {{ env }} — {{ envLabel(env) }}
+        </option>
+      </select>
+    </div>
+
+    <!-- Env badge (edit mode — not changeable) -->
+    <div *ngIf="formMode === 'edit'" class="cp-field-group">
+      <label class="cp-label"><i class="bi bi-layers me-1"></i>Environnement</label>
+      <div class="cp-env-badge-lg" [style.background]="envColor(form.env_code!) + '18'"
+           [style.color]="envColor(form.env_code!)">
+        {{ form.env_code }} — {{ envLabel(form.env_code!) }}
+      </div>
+    </div>
+
+    <!-- SECTION: Oracle server -->
+    <div class="cp-section-label">
+      <i class="bi bi-server me-2"></i>Serveur Oracle
+    </div>
+
+    <div class="cp-field-row">
+      <div class="cp-field-group cp-flex-grow">
+        <label class="cp-label">
+          <i class="bi bi-hdd-network me-1"></i>Hôte / IP <span class="cp-req">*</span>
+        </label>
+        <input type="text" [(ngModel)]="form.host" class="cp-input"
+               placeholder="192.168.1.10 ou oracle-server.local">
+        <span class="cp-hint">Adresse IP ou nom DNS de la machine Oracle</span>
+      </div>
+      <div class="cp-field-group" style="width: 120px; flex-shrink: 0;">
+        <label class="cp-label">
+          <i class="bi bi-broadcast-pin me-1"></i>Port <span class="cp-req">*</span>
+        </label>
+        <input type="number" [(ngModel)]="form.port" class="cp-input" min="1" max="65535"
+               placeholder="1521">
+      </div>
+    </div>
+
+    <div class="cp-field-group">
+      <label class="cp-label">
+        <i class="bi bi-database me-1"></i>Nom de service <span class="cp-req">*</span>
+      </label>
+      <input type="text" [(ngModel)]="form.service_name" class="cp-input"
+             placeholder="POWERCARD ou XEPDB1 ou ORCL">
+      <span class="cp-hint">Oracle service name (ou SID) — ex : POWERCARD, XEPDB1</span>
+    </div>
+
+    <!-- SECTION: Credentials -->
+    <div class="cp-section-label">
+      <i class="bi bi-key-fill me-2"></i>Identifiants de connexion
+    </div>
+
+    <div class="cp-field-group">
+      <label class="cp-label">
+        <i class="bi bi-person-fill me-1"></i>Utilisateur DB <span class="cp-req">*</span>
+      </label>
+      <input type="text" [(ngModel)]="form.db_username" class="cp-input"
+             placeholder="PCRD_USER ou SCHEMA_OWNER" autocomplete="username">
+      <span class="cp-hint">Utilisateur Oracle du schéma Powercard</span>
+    </div>
+
+    <div class="cp-field-group">
+      <label class="cp-label">
+        <i class="bi bi-shield-lock-fill me-1"></i>
+        Mot de passe <span class="cp-req" *ngIf="formMode === 'create'">*</span>
+        <span class="cp-optional" *ngIf="formMode === 'edit'">— laisser vide pour conserver</span>
+      </label>
+      <div class="cp-pass-wrap">
+        <input [type]="showPass ? 'text' : 'password'"
+               [(ngModel)]="form.db_password" class="cp-input cp-pass-input"
+               [placeholder]="formMode === 'edit' ? '••••••••  (inchangé)' : 'Mot de passe Oracle'"
+               autocomplete="current-password">
+        <button class="cp-pass-toggle" type="button" (click)="showPass = !showPass"
+                [title]="showPass ? 'Masquer' : 'Afficher'">
+          <i class="bi" [ngClass]="showPass ? 'bi-eye-slash' : 'bi-eye'"></i>
+        </button>
+      </div>
+      <div class="cp-pass-security">
+        <i class="bi bi-info-circle me-1"></i>
+        Stocké avec les mêmes protections que les DB Links Oracle.
+        Jamais exposé dans les réponses API.
+      </div>
+    </div>
+
+    <!-- SECTION: Meta -->
+    <div class="cp-section-label">
+      <i class="bi bi-card-text me-2"></i>Informations complémentaires
+    </div>
+
+    <div class="cp-field-group">
+      <label class="cp-label">Description <span class="cp-optional">— facultatif</span></label>
+      <textarea [(ngModel)]="form.description" class="cp-textarea" rows="3"
+                placeholder="ex : Instance Powercard de production — hébergée sur Oracle 19c…"></textarea>
+    </div>
+
+    <!-- TNS Preview (read-only, computed) -->
+    <div class="cp-tns-preview" *ngIf="form.host && form.port && form.service_name">
+      <div class="cp-tns-label">
+        <i class="bi bi-code-slash me-1"></i>Aperçu de la chaîne TNS
+      </div>
+      <pre class="cp-tns-code">(DESCRIPTION=
+  (ADDRESS=(PROTOCOL=TCP)(HOST={{ form.host }})(PORT={{ form.port }}))
+  (CONNECT_DATA=(SERVICE_NAME={{ form.service_name }})))</pre>
+    </div>
+
+  </div><!-- /cp-drawer-body -->
+
+  <!-- Drawer footer -->
+  <div class="cp-drawer-footer">
+    <button class="cp-btn cp-btn-cancel" (click)="closeDrawer()">
+      <i class="bi bi-x me-1"></i>Annuler
+    </button>
+    <button class="cp-btn cp-btn-save"
+            [disabled]="!formValid || saveState === 'saving'"
+            (click)="save()">
+      <span *ngIf="saveState === 'saving'" class="spinner-border spinner-border-sm me-1"></span>
+      <i *ngIf="saveState !== 'saving'" class="bi bi-cloud-arrow-up-fill me-1"></i>
+      {{ saveState === 'saving' ? 'Sauvegarde et création du lien DB…'
+       : saveState === 'saved'  ? 'Sauvegardé ✓'
+       : 'Sauvegarder et créer le lien DB' }}
+    </button>
+  </div>
+
+</aside>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     DELETE CONFIRMATION MODAL
+══════════════════════════════════════════════════════════════ -->
+
+<div class="cp-modal-overlay"
+     [class.cp-modal-overlay-visible]="showDeleteConfirm"
+     (click)="cancelDelete()"></div>
+
+<div class="cp-confirm-modal" [class.cp-confirm-modal-visible]="showDeleteConfirm"
+     *ngIf="showDeleteConfirm">
+  <div class="cp-confirm-inner" (click)="$event.stopPropagation()">
+    <div class="cp-confirm-icon">
+      <i class="bi bi-trash3-fill"></i>
+    </div>
+    <h5 class="cp-confirm-title">Supprimer ce profil ?</h5>
+    <p class="cp-confirm-sub" *ngIf="deleteTarget">
+      Le profil de connexion pour <strong>{{ deleteTarget.env_code }}</strong> sera supprimé.<br>
+      <span class="text-muted" style="font-size:.78rem">
+        Note : le lien DB Oracle (<code>{{ deleteTarget.db_link }}</code>) n'est pas supprimé automatiquement — à faire manuellement si nécessaire.
+      </span>
+    </p>
+    <div class="cp-confirm-actions">
+      <button class="cp-btn cp-btn-cancel" (click)="cancelDelete()">Annuler</button>
+      <button class="cp-btn cp-btn-delete-confirm" [disabled]="deleting" (click)="confirmDelete()">
+        <span *ngIf="deleting" class="spinner-border spinner-border-sm me-1"></span>
+        <i *ngIf="!deleting" class="bi bi-trash3-fill me-1"></i>
+        {{ deleting ? 'Suppression…' : 'Supprimer' }}
+      </button>
+    </div>
+  </div>
+</div>

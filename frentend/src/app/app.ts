@@ -24,11 +24,11 @@ export class App {
 
 private updateSidebarVisibility(url: string) {
   // Liste des routes où la sidebar DOIT être cachée
-  const hiddenRoutes = ['/login', '/home', '/'];
+  const hiddenRoutes = ['/login', '/signup', '/home', '/'];
   
   // On vérifie si l'URL actuelle (ou l'URL après redirection) est dans la liste
   // .some() permet de vérifier si l'un des éléments de la liste est présent dans l'URL
-  this.showSidebar = !hiddenRoutes.some(route => url === route || url.includes('/login') || url.includes('/home'));
+  this.showSidebar = !hiddenRoutes.includes(url);
   
   console.log("URL actuelle:", url, "Afficher Sidebar:", this.showSidebar);
 }

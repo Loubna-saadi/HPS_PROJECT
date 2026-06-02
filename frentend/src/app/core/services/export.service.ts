@@ -5,7 +5,7 @@ import { Observable } from 'rxjs';
 @Injectable({ providedIn: 'root' })
 export class ExportService {
   // MISE À JOUR : Utilise le nouveau chemin configuré dans ORDS
-  private readonly API_URL = 'http://localhost:8080/ords/v1/data/export';
+  private readonly API_URL = 'http://localhost:3000/v1/data/export';
 
   constructor(private http: HttpClient) {}
 

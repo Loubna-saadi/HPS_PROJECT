@@ -5,7 +5,7 @@ import { RouterModule } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { AuthService } from '../../../core/services/auth';
 
-const ORDS = 'http://localhost:8080/ords/v1';
+const ORDS = 'http://localhost:3000/v1';
 
 interface DashboardStats {
   last_audit_date: string;

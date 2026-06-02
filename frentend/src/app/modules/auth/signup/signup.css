@@ -1,0 +1,10 @@
+.auth-wrapper {
+  background: linear-gradient(87deg, #5e72e4 0, #825ee4 100%);
+  min-height: 100vh;
+  width: 100%;
+}
+.auth-card {
+  width: 100%;
+  max-width: 450px;
+  border-radius: 1rem;
+}
