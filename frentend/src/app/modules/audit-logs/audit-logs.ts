@@ -144,7 +144,7 @@ export class AuditLogsComponent implements OnInit {
   get pageEnd(): number { return Math.min(this.page * this.pageSize, this.filtered.length); }
 
   // Only ADMIN can validate or import scripts
-  get canValidateOrImport(): boolean { return this.role === 'ADMIN'; }
+  get canValidateOrImport(): boolean { return this.role === 'ADMIN' || this.role === 'SUPERUSER'; }
 
   // Script was successfully validated (local flag — also set from DB est_valide)
   get scriptIsValidated(): boolean { return this.validateState === 'valid'; }
@@ -165,20 +165,13 @@ export class AuditLogsComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.role   = this.authService.getRole()   ?? 'USER';
+    this.role   = (this.authService.getRole() ?? 'user').toUpperCase();
     this.userId = this.authService.getUserId() ?? 0;
     this.loadLogs();
   }
 
   loadLogs(): void {
-    const isSuperUser = this.role === 'SUPERUSER';
-    const isAdmin     = this.role === 'ADMIN';
-
-    if (!isSuperUser && !isAdmin) {
-      this.loading = false;
-      this.cdr.markForCheck();
-      return;
-    }
+    const isAdmin = this.role === 'ADMIN' || this.role === 'SUPERUSER';
 
     const url = isAdmin
       ? `${ORDS}/audit/logs/admin`

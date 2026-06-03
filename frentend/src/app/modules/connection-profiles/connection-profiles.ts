@@ -90,8 +90,10 @@ export class ConnectionProfilesComponent implements OnInit {
   formMode:   FormMode  = 'create';
   form:       Partial<ConnectionProfile> = EMPTY_FORM();
   showPass    = false;
-  saveState:  SaveState = 'idle';
-  saveError   = '';
+  saveState:    SaveState = 'idle';
+  saveError     = '';
+  linksCreated: { from: string; to: string; link: string }[] = [];
+  linksFailed:  { from: string; to: string; error: string }[] = [];
 
   // ── Per-card test state ───────────────────────────────────────────────────
   testStates:  Map<string, TestState>  = new Map();
@@ -215,13 +217,15 @@ export class ConnectionProfilesComponent implements OnInit {
 
     this.http.post<any>(`${ORDS}/audit/connection-profiles`, body).subscribe({
       next: (res) => {
-        this.saveState = res.success ? 'saved' : 'error';
+        this.saveState    = res.success ? 'saved' : 'error';
+        this.linksCreated = res.links_created ?? [];
+        this.linksFailed  = res.links_failed  ?? [];
         if (!res.success) {
           this.saveError = res.link_result ?? 'Profil sauvegardé mais le lien DB a échoué.';
         }
         this.cdr.markForCheck();
         if (res.success) {
-          setTimeout(() => { this.closeDrawer(); this.loadProfiles(); }, 900);
+          setTimeout(() => { this.closeDrawer(); this.loadProfiles(); }, 1500);
         }
       },
       error: (err) => {

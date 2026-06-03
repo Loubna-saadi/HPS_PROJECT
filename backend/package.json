@@ -5,8 +5,8 @@
   "main": "src/index.js",
   "type": "commonjs",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node --max-old-space-size=4096 src/index.js",
+    "dev": "nodemon --max-old-space-size=4096 src/index.js",
     "test": "echo \"No tests yet\""
   },
   "dependencies": {

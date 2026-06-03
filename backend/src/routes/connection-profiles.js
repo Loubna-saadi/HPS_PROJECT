@@ -14,10 +14,11 @@
  *   POST   /v1/audit/connection-profiles/test       test live connectivity
  */
 
-const express = require('express');
-const router  = express.Router();
-const store   = require('../storage/store');
-const oracle  = require('../oracle/connections');
+const express  = require('express');
+const router   = express.Router();
+const store    = require('../storage/store');
+const oracle   = require('../oracle/connections');
+const dbLinks  = require('../services/db-links');
 
 const ALL_ENVS = ['DEV', 'DEV_VAL', 'UAT', 'SIT', 'PROD'];
 
@@ -94,11 +95,18 @@ router.post('/connection-profiles', async (req, res) => {
   // Invalidate any cached pool so the next query uses the new credentials
   await oracle.invalidatePool(code);
 
+  // Auto-create DB links between this env and all others
+  const allProfiles = store.findAll('connection-profiles');
+  const linkSummary = await dbLinks.syncLinksForProfile(profile, allProfiles);
+  console.log(`[profiles] DB links sync: ${linkSummary.created.length} created, ${linkSummary.failed.length} failed`);
+
   res.json({
-    id:          profile.id,
-    env_code:    profile.env_code,
-    link_result: 'OK',
-    success:     true,
+    id:           profile.id,
+    env_code:     profile.env_code,
+    links_created: linkSummary.created,
+    links_failed:  linkSummary.failed,
+    link_result:  'OK',
+    success:      true,
   });
 });
 

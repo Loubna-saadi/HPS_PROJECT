@@ -217,7 +217,18 @@
   <!-- Save result banner -->
   <div *ngIf="saveState === 'saved'" class="cp-save-banner cp-save-ok">
     <i class="bi bi-check-circle-fill me-2"></i>
-    Profil sauvegardé et lien DB recréé avec succès.
+    Profil sauvegardé.
+    <span *ngIf="linksCreated.length > 0">
+      {{ linksCreated.length }} lien(s) DB créé(s) :
+      <strong *ngFor="let l of linksCreated" class="me-2">{{ l.link }} ({{ l.from }}→{{ l.to }})</strong>
+    </span>
+    <span *ngIf="linksCreated.length === 0 && linksFailed.length === 0">
+      Aucun autre environnement — liens DB créés lors de l'ajout des profils suivants.
+    </span>
+    <span *ngIf="linksFailed.length > 0" class="text-warning ms-2">
+      <i class="bi bi-exclamation-triangle me-1"></i>
+      {{ linksFailed.length }} lien(s) non créé(s) (connexion Oracle indisponible).
+    </span>
   </div>
   <div *ngIf="saveState === 'error'" class="cp-save-banner cp-save-err">
     <i class="bi bi-exclamation-triangle-fill me-2"></i>

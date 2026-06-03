@@ -85,9 +85,9 @@ async function getPool(envCode) {
     user:          p.user,
     password:      p.password,
     connectString,
-    poolMin:       1,
-    poolMax:       4,
-    poolIncrement: 1,
+    poolMin:       2,
+    poolMax:       10,
+    poolIncrement: 2,
     poolAlias:     `pool_${code}`,
   });
 
@@ -155,4 +155,31 @@ async function query(envCode, sql, binds = [], opts = {}) {
   }
 }
 
-module.exports = { getConnection, releaseConnection, testConnection, invalidatePool, query };
+// Stream rows from Oracle in batches — never loads the whole table into memory.
+// rowCallback(row) is called once per row with lowercased keys.
+async function queryStream(envCode, sql, binds = [], rowCallback, batchSize = 500) {
+  const db = getOracleDb();
+  let conn;
+  try {
+    conn = await getConnection(envCode);
+    const result = await conn.execute(sql, binds, {
+      outFormat:      db.OUT_FORMAT_OBJECT,
+      fetchArraySize: batchSize,
+      resultSet:      true,
+    });
+    const rs = result.resultSet;
+    let batch;
+    while ((batch = await rs.getRows(batchSize)).length > 0) {
+      for (const row of batch) {
+        const out = {};
+        for (const k of Object.keys(row)) out[k.toLowerCase()] = row[k];
+        await rowCallback(out);
+      }
+    }
+    await rs.close();
+  } finally {
+    await releaseConnection(conn);
+  }
+}
+
+module.exports = { getConnection, releaseConnection, testConnection, invalidatePool, query, queryStream };

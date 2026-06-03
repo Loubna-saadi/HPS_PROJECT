@@ -397,6 +397,16 @@ export class ExportComponent implements OnInit {
   // so the link name is always correct (e.g. DEVVAL_LINK not DEV_VAL_LINK)
   // ==========================================================================
 
+  private toOracleLiteral(val: string | null | undefined): string {
+    if (val == null) return 'NULL';
+    const s = String(val);
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s)) {
+      const dt = s.replace('T', ' ').replace(/\.\d+Z?$/, '').substring(0, 19);
+      return `TO_DATE('${dt}','YYYY-MM-DD HH24:MI:SS')`;
+    }
+    return `'${s.replace(/'/g, "''")}'`;
+  }
+
   regenerateScript(): void {
     this.scriptModified  = false;
     this.scriptSaveState = 'idle';
@@ -492,18 +502,16 @@ export class ExportComponent implements OnInit {
         continue;
       }
 
-      // UPDATE: column-level difference ──────────────────────────────────────
-      const updateCols = cols.filter(
-        c => !c.alerte_statut?.toUpperCase().includes('ABSENT')
-      );
+      // UPDATE: only columns that actually differ (exclude ABSENT and IDENTIQUE)
+      const updateCols = cols.filter(c => {
+        const s = (c.alerte_statut ?? '').toUpperCase();
+        return !s.includes('ABSENT') && s !== 'IDENTIQUE';
+      });
       if (!updateCols.length) continue;
 
       const setClauses = updateCols.map(c => {
         const rawVal = dir === 'source' ? c.valeur_source : c.valeur_cible;
-        const sqlVal = rawVal != null
-          ? `'${String(rawVal).replace(/'/g, "''")}'`
-          : 'NULL';
-        return `    ${c.type_difference} = ${sqlVal}`;
+        return `    ${c.type_difference} = ${this.toOracleLiteral(rawVal)}`;
       }).join(',\n');
 
       lines.push(

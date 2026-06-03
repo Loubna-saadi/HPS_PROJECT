@@ -8,10 +8,11 @@
  *   GET /v1/audit/columns/:table?env=DEV  → list columns of a table
  */
 
-const express = require('express');
-const router  = express.Router();
-const oracle  = require('../oracle/connections');
-const store   = require('../storage/store');
+const express  = require('express');
+const router   = express.Router();
+const oracle   = require('../oracle/connections');
+const store    = require('../storage/store');
+const dbLinks  = require('../services/db-links');
 
 /**
  * Guard: check a profile exists for this env before trying to query Oracle.
@@ -30,6 +31,28 @@ function requireProfile(envCode, res) {
   }
   return true;
 }
+
+// ── GET /v1/audit/envlink?env=DEV&from=DEV_VAL ───────────────────────────────
+// Returns the DB link name to reach `env` when running SQL from `from`.
+// Reads from data/environments.json (populated when profiles are saved).
+// Falls back to derived name (DEVVAL_LINK) if no link recorded yet.
+router.get('/envlink', (req, res) => {
+  const env  = (req.query.env  || '').toUpperCase();
+  const from = (req.query.from || '').toUpperCase();
+  if (!env) return res.status(400).json({ error: 'env query param is required' });
+
+  const profiles = store.findAll('connection-profiles');
+  if (!profiles.find(p => p.env_code === env)) {
+    return res.status(404).json({ error: `No connection profile for "${env}"` });
+  }
+
+  // If caller passes ?from=, look up the specific directional link
+  const dbLink = from
+    ? dbLinks.getLinkForEnv(from, env)
+    : dbLinks.linkName(env);
+
+  res.json({ env, db_link: dbLink });
+});
 
 // ── GET /v1/audit/tables?env=DEV ─────────────────────────────────────────────
 router.get('/tables', async (req, res) => {

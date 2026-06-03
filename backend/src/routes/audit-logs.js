@@ -15,32 +15,62 @@ const express = require('express');
 const router  = express.Router();
 const store   = require('../storage/store');
 
-// ── Helper: build enriched log shape matching what the frontend expects ────────
-function buildLog(op) {
-  const anomalies = store.findAll('anomalies', a => a.operation_id === op.id);
+// ── Pre-load lookup maps (one file read each, not one per operation) ──────────
+function buildLookups() {
+  // Group anomalies by operation_id
+  const allAnomalies = store.findAll('anomalies');
+  const anomalyMap   = new Map();
+  for (const a of allAnomalies) {
+    const key = a.operation_id;
+    if (!anomalyMap.has(key)) anomalyMap.set(key, []);
+    anomalyMap.get(key).push(a);
+  }
+
+  // Map users by id
+  const userMap = new Map();
+  for (const u of store.findAll('users')) userMap.set(u.id, u);
+
+  return { anomalyMap, userMap };
+}
+
+// ── Helper: build enriched log shape ──────────────────────────────────────────
+function buildLog(op, anomalyMap, userMap) {
+  const anomalies = anomalyMap.get(op.id) ?? [];
   const tables    = [...new Set(anomalies.map(a => a.nom_table).filter(Boolean))];
+
+  // Use pre-stored counts when available (avoids re-scanning anomalies)
+  const nbDiff    = op.total_diff      ?? anomalies.filter(a => a.alerte_statut !== 'IDENTIQUE').length;
+  const nbTables  = op.tables_scanned  ?? tables.length;
+
+  // Resolve display name
+  let performedBy = op.performed_by ?? null;
+  if (!performedBy && op.utilisateur_id) {
+    const user = userMap.get(Number(op.utilisateur_id));
+    if (user) performedBy = user.nom || user.login;
+  }
+  performedBy = performedBy ?? `user_${op.utilisateur_id ?? 0}`;
 
   return {
     id:               op.id,
-    type:             op.type             ?? 'COMPARAISON_TABLE',
-    statut:           op.statut           ?? 'TERMINE',
-    date_operation:   op.created_at       ?? op.updated_at,
-    source_env:       op.env_source       ?? '',
-    cible_env:        op.env_cible        ?? '',
-    performed_by:     op.performed_by     ?? `user_${op.utilisateur_id ?? 0}`,
-    user_role:        op.user_role        ?? 'USER',
-    superuser_login:  op.superuser_login  ?? null,
-    tables_impactees: tables.length,
-    nb_anomalies:     anomalies.filter(a => a.alerte_statut !== 'IDENTIQUE').length,
-    // keep raw fields for detail panel
-    nom_table:        op.nom_table        ?? null,
-    script_id:        op.script_id        ?? null,
+    type:             op.type           ?? 'COMPARAISON_TABLE',
+    statut:           op.statut         ?? 'TERMINE',
+    date_operation:   op.created_at     ?? op.updated_at,
+    source_env:       op.env_source     ?? '',
+    cible_env:        op.env_cible      ?? '',
+    performed_by:     performedBy,
+    user_role:        op.user_role      ?? 'USER',
+    superuser_login:  op.superuser_login ?? null,
+    tables_impactees: nbTables,
+    nb_anomalies:     nbDiff,
+    nom_table:        op.nom_table      ?? null,
+    script_id:        op.script_id      ?? null,
   };
 }
 
 // ── GET /v1/audit/logs/superuser?superuserId=<id> ─────────────────────────────
 router.get('/logs/superuser', (req, res) => {
-  const superuserId = Number(req.query.superuserId);
+  const superuserId      = Number(req.query.superuserId);
+  const { anomalyMap, userMap } = buildLookups();
 
   let ops = store.findAll('operations');
   if (superuserId) {
@@ -53,19 +83,21 @@ router.get('/logs/superuser', (req, res) => {
   const items = ops
     .filter(o => o.statut !== 'EN_COURS')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .map(buildLog);
+    .map(op => buildLog(op, anomalyMap, userMap));
 
   res.json({ items });
 });
 
 // ── GET /v1/audit/logs/admin ──────────────────────────────────────────────────
-router.get('/logs/admin', (req, res) => {
-  const ops = store.findAll('operations')
+router.get('/logs/admin', (_req, res) => {
+  const { anomalyMap, userMap } = buildLookups();
+
+  const items = store.findAll('operations')
     .filter(o => o.statut !== 'EN_COURS')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .map(buildLog);
+    .map(op => buildLog(op, anomalyMap, userMap));
 
-  res.json({ items: ops });
+  res.json({ items });
 });
 
 // ── GET /v1/audit/scripts?operationId=<id>  (camelCase — from audit-logs.ts) ──
