@@ -11,36 +11,24 @@
  *   POST /v1/audit/execute-script
  */
 
-const express = require('express');
-const router  = express.Router();
-const store   = require('../storage/store');
+const express      = require('express');
+const router       = express.Router();
+const store        = require('../storage/store');
+const anomalyStore = require('../storage/anomaly-store');
 
-// ── Pre-load lookup maps (one file read each, not one per operation) ──────────
+// ── Pre-load lookup maps ───────────────────────────────────────────────────────
 function buildLookups() {
-  // Group anomalies by operation_id
-  const allAnomalies = store.findAll('anomalies');
-  const anomalyMap   = new Map();
-  for (const a of allAnomalies) {
-    const key = a.operation_id;
-    if (!anomalyMap.has(key)) anomalyMap.set(key, []);
-    anomalyMap.get(key).push(a);
-  }
-
-  // Map users by id
   const userMap = new Map();
   for (const u of store.findAll('users')) userMap.set(u.id, u);
-
-  return { anomalyMap, userMap };
+  // anomalies are now per-operation files — loaded on demand in buildLog
+  return { userMap };
 }
 
 // ── Helper: build enriched log shape ──────────────────────────────────────────
-function buildLog(op, anomalyMap, userMap) {
-  const anomalies = anomalyMap.get(op.id) ?? [];
-  const tables    = [...new Set(anomalies.map(a => a.nom_table).filter(Boolean))];
-
-  // Use pre-stored counts when available (avoids re-scanning anomalies)
-  const nbDiff    = op.total_diff      ?? anomalies.filter(a => a.alerte_statut !== 'IDENTIQUE').length;
-  const nbTables  = op.tables_scanned  ?? tables.length;
+function buildLog(op, _anomalyMap, userMap) {
+  // Use pre-stored totals; only read anomaly file if fields are missing
+  const nbDiff   = op.total_diff     ?? anomalyStore.countDiffs(op.id);
+  const nbTables = op.tables_scanned ?? 1;
 
   // Resolve display name
   let performedBy = op.performed_by ?? null;
@@ -70,7 +58,7 @@ function buildLog(op, anomalyMap, userMap) {
 // ── GET /v1/audit/logs/superuser?superuserId=<id> ─────────────────────────────
 router.get('/logs/superuser', (req, res) => {
   const superuserId      = Number(req.query.superuserId);
-  const { anomalyMap, userMap } = buildLookups();
+  const { userMap } = buildLookups();
 
   let ops = store.findAll('operations');
   if (superuserId) {
@@ -83,19 +71,19 @@ router.get('/logs/superuser', (req, res) => {
   const items = ops
     .filter(o => o.statut !== 'EN_COURS')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .map(op => buildLog(op, anomalyMap, userMap));
+    .map(op => buildLog(op, null, userMap));
 
   res.json({ items });
 });
 
 // ── GET /v1/audit/logs/admin ──────────────────────────────────────────────────
 router.get('/logs/admin', (_req, res) => {
-  const { anomalyMap, userMap } = buildLookups();
+  const { userMap } = buildLookups();
 
   const items = store.findAll('operations')
     .filter(o => o.statut !== 'EN_COURS')
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    .map(op => buildLog(op, anomalyMap, userMap));
+    .map(op => buildLog(op, null, userMap));
 
   res.json({ items });
 });

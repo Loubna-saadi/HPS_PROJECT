@@ -49,6 +49,10 @@ export class CompareService {
   /**
    * Fetch anomaly results for a given operation ID.
    */
+  getOperationStatus(opId: number): Observable<any> {
+    return this.http.get<any>(`${ORDS}/audit/operation-status/${opId}`);
+  }
+
   getAnomalies(opId: number): Observable<any> {
     return this.http.get<any>(`${ORDS}/audit/results/${opId}`, {
       responseType: 'json' as const

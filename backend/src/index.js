@@ -32,6 +32,7 @@ function safeMount(path, file) {
 }
 
 safeMount('/v1/auth', './routes/auth');
+safeMount(base, './routes/dashboard');
 safeMount(base, './routes/compare');
 safeMount(base, './routes/oracle');
 safeMount(base, './routes/scripts');

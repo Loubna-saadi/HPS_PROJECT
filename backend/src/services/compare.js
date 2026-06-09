@@ -20,8 +20,9 @@
  *   IDENTIQUE           — row is identical (we still store for stats)
  */
 
-const oracle = require('../oracle/connections');
-const store  = require('../storage/store');
+const oracle       = require('../oracle/connections');
+const store        = require('../storage/store');
+const anomalyStore = require('../storage/anomaly-store');
 const { queryStream } = oracle;
 
 // Columns always excluded from comparison regardless of user input
@@ -104,17 +105,31 @@ function valStr(v) {
 //
 // onlyDiffs=true skips IDENTIQUE records (used for full-scan to save memory/disk)
 //
-async function compareTable(envSrc, envCbl, tableName, excludedColumns = [], onlyDiffs = false) {
-  const pkCols = await detectPK(envSrc, tableName);
-  const excl   = [...new Set([...ALWAYS_EXCLUDED, ...excludedColumns.map(c => c.toUpperCase())])];
+// pkMap / colMap are optional pre-fetched bulk caches from runFullScan.
+// When provided, no Oracle round-trip is needed for PK/column detection.
+async function compareTable(envSrc, envCbl, tableName, excludedColumns = [], onlyDiffs = false, pkMap = null, colMap = null) {
+  const excl = [...new Set([...ALWAYS_EXCLUDED, ...excludedColumns.map(c => c.toUpperCase())])];
 
-  // Get column list from source
-  const colRows = await oracle.query(envSrc, `
-    SELECT column_name FROM all_tab_columns
-    WHERE  UPPER(table_name) = :tbl ORDER BY column_id
-  `, [tableName.toUpperCase()]);
+  // PK: use bulk cache if available, else query Oracle
+  let pkCols;
+  if (pkMap && pkMap.has(tableName)) {
+    pkCols = pkMap.get(tableName);
+  } else {
+    pkCols = await detectPK(envSrc, tableName);
+  }
 
-  const columns = [...new Set(colRows.map(r => r.column_name).filter(c => !excl.includes(c.toUpperCase())))];
+  // Columns: use bulk cache if available, else query Oracle
+  let columns;
+  if (colMap && colMap.has(tableName)) {
+    columns = colMap.get(tableName).filter(c => !excl.includes(c.toUpperCase()));
+  } else {
+    const colRows = await oracle.query(envSrc, `
+      SELECT column_name FROM all_tab_columns
+      WHERE  UPPER(table_name) = :tbl ORDER BY column_id
+    `, [tableName.toUpperCase()]);
+    columns = [...new Set(colRows.map(r => r.column_name).filter(c => !excl.includes(c.toUpperCase())))];
+  }
+
   if (columns.length === 0) throw new Error(`No columns found for "${tableName}" in ${envSrc}`);
 
   const pkLower = pkCols.map(c => c.toLowerCase());
@@ -139,7 +154,7 @@ async function compareTable(envSrc, envCbl, tableName, excludedColumns = [], onl
     if (!srcMap.has(keyStr)) {
       anomalies.push({
         cle: keyStr, nom_table: tableName, type_difference: 'ROW',
-        valeur_source: null, valeur_cible: JSON.stringify(row),
+        valeur_source: null, valeur_cible: safeStr(row),
         alerte_statut: 'ABSENT_DANS_SOURCE',
         description: `Row ${keyStr} exists in ${envCbl} but not in ${envSrc}`,
         statut: 'OUVERT',
@@ -181,7 +196,7 @@ async function compareTable(envSrc, envCbl, tableName, excludedColumns = [], onl
   for (const [keyStr, srcRow] of srcMap) {
     anomalies.push({
       cle: keyStr, nom_table: tableName, type_difference: 'ROW',
-      valeur_source: JSON.stringify(srcRow), valeur_cible: null,
+      valeur_source: safeStr(srcRow), valeur_cible: null,
       alerte_statut: 'ABSENT_DANS_CIBLE',
       description: `Row ${keyStr} exists in ${envSrc} but not in ${envCbl}`,
       statut: 'OUVERT',
@@ -233,10 +248,8 @@ async function runTableCompare({ envSrc, envCbl, tableName, excludedColumns = []
   try {
     const anomalies = await compareTable(envSrc, envCbl, tableName, excl);
 
-    // Save all anomalies in bulk
-    const saved = store.insertMany('anomalies',
-      anomalies.map(a => ({ ...a, operation_id: operation.id }))
-    );
+    anomalyStore.insertMany(operation.id, anomalies.map(a => ({ ...a, operation_id: operation.id })));
+    const saved = anomalies;
 
     const totalDiff = anomalies.filter(a => a.alerte_statut !== 'IDENTIQUE').length;
     const statut    = totalDiff > 0 ? 'ANOMALIES_GENEREES' : 'TERMINE';
@@ -262,19 +275,75 @@ async function runTableCompare({ envSrc, envCbl, tableName, excludedColumns = []
  * Run full schema scan — loops all tables in source env.
  * Returns the saved operation record.
  */
-const FULL_SCAN_CONCURRENCY = 4;    // concurrent table comparisons — keep memory sane
-const FLUSH_BATCH_SIZE      = 200;  // write to disk every N diff records
-const MAX_ROWS_PER_TABLE    = 50000; // tables larger than this get a count-only comparison
+const FULL_SCAN_CONCURRENCY  = 4;   // concurrent row comparisons (2 connections each = 8 pool slots)
+const COUNT_CONCURRENCY      = 10;  // concurrent COUNT queries for Phase 1
+const FLUSH_BATCH_SIZE       = 200; // write to disk every N diff records
+const MAX_ROWS_PER_TABLE     = 50000; // tables larger than this skip row comparison
 
-// ── Lightweight pre-check: get row count from Oracle ─────────────────────────
-async function getCount(envCode, tableName) {
+// ── Bulk schema pre-fetch ─────────────────────────────────────────────────────
+// Fetches ALL PKs and column lists for the entire schema in 2 queries.
+// Returns Maps so per-table lookup is O(1) with no Oracle round-trip.
+
+async function fetchAllPKs(envCode) {
+  const map = new Map(); // tableName → [colName, ...]
   try {
-    const rows = await oracle.query(envCode, `SELECT COUNT(*) AS cnt FROM "${tableName}"`);
-    return Number(rows[0]?.cnt ?? 0);
-  } catch (_) {
-    return -1; // table unreadable — will be skipped
+    const rows = await oracle.query(envCode, `
+      SELECT c.table_name, k.column_name, k.position
+      FROM   user_constraints c
+      JOIN   user_cons_columns k
+             ON k.constraint_name = c.constraint_name
+      WHERE  c.constraint_type = 'P'
+      ORDER  BY c.table_name, k.position
+    `);
+    for (const r of rows) {
+      const tbl = r.table_name;
+      if (!map.has(tbl)) map.set(tbl, []);
+      map.get(tbl).push(r.column_name);
+    }
+  } catch (err) {
+    console.warn('[compare] fetchAllPKs failed:', err.message);
   }
+  return map;
 }
+
+async function fetchAllColumns(envCode, excludedCols = []) {
+  const excl = excludedCols.map(c => c.toUpperCase());
+  const map  = new Map(); // tableName → [colName, ...]
+  try {
+    const rows = await oracle.query(envCode, `
+      SELECT table_name, column_name
+      FROM   user_tab_columns
+      ORDER  BY table_name, column_id
+    `);
+    for (const r of rows) {
+      const tbl = r.table_name;
+      const col = r.column_name;
+      if (excl.includes(col.toUpperCase())) continue;
+      if (!map.has(tbl)) map.set(tbl, []);
+      map.get(tbl).push(col);
+    }
+  } catch (err) {
+    console.warn('[compare] fetchAllColumns failed:', err.message);
+  }
+  return map;
+}
+
+// Counts all tables with COUNT_CONCURRENCY parallel queries — accurate and robust.
+// Returns Map: tableName → exact row count (-1 = unreadable/skip)
+async function fetchAllTableCounts(envCode, tables) {
+  const map     = new Map();
+  const results = await runWithLimit(tables, COUNT_CONCURRENCY, async (tbl) => {
+    try {
+      const rows = await oracle.query(envCode, `SELECT COUNT(*) AS cnt FROM "${tbl}"`);
+      return { tbl, cnt: Number(rows[0]?.cnt ?? 0) };
+    } catch (_) {
+      return { tbl, cnt: -1 };
+    }
+  });
+  for (const r of results) if (r) map.set(r.tbl, r.cnt);
+  return map;
+}
+
 
 // ── Worker-queue runner — keeps LIMIT workers busy at all times ───────────────
 async function runWithLimit(items, limit, fn) {
@@ -293,73 +362,114 @@ async function runWithLimit(items, limit, fn) {
   return results;
 }
 
-async function runFullScan({ envSrc, envCbl, excludedTables = [], userId }) {
+// Safe stringify — avoids circular reference crashes on Oracle internal objects
+function safeStr(v) {
+  if (v === null || v === undefined) return null;
+  if (v instanceof Date) return v.toISOString();
+  if (typeof v !== 'object') return String(v);
+  try { return JSON.stringify(v); } catch (_) { return '[unserializable]'; }
+}
+
+async function runFullScan({ envSrc, envCbl, excludedTables = [], userId, operationId = null }) {
   const excl = typeof excludedTables === 'string'
     ? excludedTables.split(',').filter(Boolean)
     : excludedTables;
 
-  const operation = store.insert('operations', {
-    env_source:      envSrc,
-    env_cible:       envCbl,
-    nom_table:       'FULL_SCAN',
-    statut:          'EN_COURS',
-    type:            'COMPARAISON_SCHEMA',
-    utilisateur_id:  userId,
-    excluded_tables: excl.join(','),
-  });
+  // Reuse a pre-created operation if the route already inserted one
+  const operation = operationId
+    ? { id: operationId }
+    : store.insert('operations', {
+        env_source:      envSrc,
+        env_cible:       envCbl,
+        nom_table:       'FULL_SCAN',
+        statut:          'EN_COURS',
+        type:            'COMPARAISON_SCHEMA',
+        utilisateur_id:  userId,
+        excluded_tables: excl.join(','),
+      });
 
   try {
     const tables = await getAllTables(envSrc, excl);
 
-    // ── Phase 1: fast COUNT pre-filter in parallel ─────────────────────────
-    // Skip tables that are empty on BOTH sides — no comparison needed.
-    console.log(`[compare] Phase 1: counting rows in ${tables.length} tables…`);
-    const counts = await runWithLimit(tables, FULL_SCAN_CONCURRENCY, async (tbl) => {
-      const [src, cbl] = await Promise.all([
-        getCount(envSrc, tbl),
-        getCount(envCbl, tbl),
-      ]);
-      return { tbl, src, cbl };
-    });
+    // ── Phase 1: bulk stats — 4 queries total, no per-table round-trips ───────
+    console.log(`[compare] Phase 1: fetching schema stats for ${tables.length} tables…`);
+    const tableSet = new Set(tables);
+
+    // Run all four bulk fetches in parallel:
+    // - COUNT(*) per table on each env (COUNT_CONCURRENCY parallel queries, accurate)
+    // - All PKs from source schema (one query)
+    // - All columns from source schema (one query)
+    console.log(`[compare] Phase 1: counting ${tables.length} tables at concurrency ${COUNT_CONCURRENCY}…`);
+    const [srcStats, cblStats, pkMap, colMap] = await Promise.all([
+      fetchAllTableCounts(envSrc, tables),
+      fetchAllTableCounts(envCbl, tables),
+      fetchAllPKs(envSrc),
+      fetchAllColumns(envSrc, ALWAYS_EXCLUDED),
+    ]);
+
+    const counts = tables
+      .filter(tbl => tableSet.has(tbl))
+      .map(tbl => ({
+        tbl,
+        src: srcStats.get(tbl) ?? 0,
+        cbl: cblStats.get(tbl) ?? 0,
+      }));
 
     const toCompare = counts.filter(c => !(c.src === 0 && c.cbl === 0) && c.src >= 0);
     const skipped   = tables.length - toCompare.length;
-    console.log(`[compare] Phase 1 done: ${toCompare.length} tables need comparison, ${skipped} empty/skipped.`);
 
-    store.updateById('operations', operation.id, {
-      tables_total: toCompare.length,
-      tables_done:  0,
-    });
+    // ── Phase 1 result: immediately create anomalies for count mismatches ─────
+    // Tables where src_count ≠ cbl_count definitely have missing/extra rows.
+    // No row fetch needed — the counts say it all.
+    const countMismatch  = toCompare.filter(c => c.src !== c.cbl);
+    const countMatched   = toCompare.filter(c => c.src === c.cbl);
+    // Only do row-level comparison on small equal-count tables (value changes)
+    const rowCompare     = countMatched.filter(c => c.src <= MAX_ROWS_PER_TABLE);
 
-    // ── Phase 2: full row comparison on non-empty tables ──────────────────
+    console.log(`[compare] Phase 1 done: ${toCompare.length} non-empty tables.`);
+    console.log(`[compare]   ${countMismatch.length} count mismatches → instant anomalies`);
+    console.log(`[compare]   ${rowCompare.length} small equal-count tables → row comparison`);
+    console.log(`[compare]   ${countMatched.length - rowCompare.length} large equal-count tables → skipped (too large)`);
+    console.log(`[compare]   ${skipped} empty tables → skipped`);
+
     let pending   = [];
     let totalDiff = 0;
     let done      = 0;
+    const totalWork = countMismatch.length + rowCompare.length;
 
-    await runWithLimit(toCompare, FULL_SCAN_CONCURRENCY, async ({ tbl, src, cbl }) => {
+    store.updateById('operations', operation.id, {
+      tables_total: totalWork,
+      tables_done:  0,
+    });
+
+    // ── Phase 2a: count-mismatch anomalies (instant — no Oracle calls) ────────
+    for (const { tbl, src, cbl } of countMismatch) {
+      const type = src > cbl ? 'ABSENT_DANS_CIBLE' : 'ABSENT_DANS_SOURCE';
+      pending.push({
+        operation_id:    operation.id,
+        nom_table:       tbl,
+        cle:             'COUNT',
+        type_difference: 'ROW_COUNT',
+        valeur_source:   String(src),
+        valeur_cible:    String(cbl),
+        alerte_statut:   type,
+        description:     `${tbl}: ${src} rows in ${envSrc} vs ${cbl} rows in ${envCbl}`,
+        statut:          'OUVERT',
+      });
+      totalDiff++;
+      done++;
+    }
+    if (pending.length > 0) {
+      store.insertMany('anomalies', pending);
+      pending = [];
+    }
+    store.updateById('operations', operation.id, { tables_done: done, total_diff: totalDiff });
+    console.log(`[compare] Phase 2a done: ${countMismatch.length} count-mismatch anomalies saved.`);
+
+    // ── Phase 2b: row-level comparison on small equal-count tables ────────────
+    await runWithLimit(rowCompare, FULL_SCAN_CONCURRENCY, async ({ tbl }) => {
       try {
-        // Large table: skip full fetch, record count difference only
-        if (src > MAX_ROWS_PER_TABLE || cbl > MAX_ROWS_PER_TABLE) {
-          if (src !== cbl) {
-            pending.push({
-              operation_id:    operation.id,
-              nom_table:       tbl,
-              cle:             'COUNT',
-              type_difference: 'ROW_COUNT',
-              valeur_source:   String(src),
-              valeur_cible:    String(cbl),
-              alerte_statut:   'VALEUR_DIFFERENTE',
-              description:     `Table too large for full scan (${src} vs ${cbl} rows). Count differs.`,
-              statut:          'OUVERT',
-            });
-            totalDiff++;
-          }
-          return;
-        }
-
-        // onlyDiffs=true: IDENTIQUE records are never created, saving memory and disk
-        const diffs = await compareTable(envSrc, envCbl, tbl, [], true);
-
+        const diffs = await compareTable(envSrc, envCbl, tbl, [], true, pkMap, colMap);
         if (diffs.length > 0) {
           pending.push(...diffs.map(a => ({ ...a, operation_id: operation.id })));
           totalDiff += diffs.length;
@@ -370,18 +480,13 @@ async function runFullScan({ envSrc, envCbl, excludedTables = [], userId }) {
 
       done++;
 
-      // Flush to disk when buffer is large enough
       if (pending.length >= FLUSH_BATCH_SIZE) {
-        store.insertMany('anomalies', pending);
+        anomalyStore.insertMany(operation.id, pending);
         pending = [];
       }
 
-      // Progress update every 50 tables
-      if (done % 50 === 0 || done === toCompare.length) {
-        store.updateById('operations', operation.id, {
-          tables_done: done,
-          total_diff:  totalDiff,
-        });
+      if (done % 20 === 0 || done === totalWork) {
+        store.updateById('operations', operation.id, { tables_done: done, total_diff: totalDiff });
       }
     });
 

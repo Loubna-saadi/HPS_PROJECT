@@ -8,9 +8,10 @@
  * These are just reads from local store — no Oracle calls.
  */
 
-const express = require('express');
-const router  = express.Router();
-const store   = require('../storage/store');
+const express      = require('express');
+const router       = express.Router();
+const store        = require('../storage/store');
+const anomalyStore = require('../storage/anomaly-store');
 
 // ── GET /v1/audit/export/operation/:id ───────────────────────────────────────
 router.get('/export/operation/:id', (req, res) => {
@@ -26,7 +27,7 @@ router.get('/export/anomalies', (req, res) => {
 
   if (!opId) return res.status(400).json({ error: 'operation_id is required' });
 
-  let items = store.findAll('anomalies', a => a.operation_id === opId);
+  let items = anomalyStore.getAll(opId);
 
   if (scope === 'diff') {
     items = items.filter(a => a.alerte_statut && !a.alerte_statut.includes('IDENTIQUE'));

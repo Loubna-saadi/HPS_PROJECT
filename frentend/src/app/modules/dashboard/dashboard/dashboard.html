@@ -96,7 +96,7 @@
           <div class="card border-0 shadow-sm rounded-4 h-100">
             <div class="card-header bg-white border-0 py-3 px-4 d-flex justify-content-between align-items-center">
               <h6 class="mb-0 fw-bold text-dark">Rapports d'Audit Récents</h6>
-              <a routerLink="/export" class="btn btn-link btn-sm text-decoration-none text-muted fw-semibold">
+              <a routerLink="/audit" class="btn btn-link btn-sm text-decoration-none text-muted fw-semibold">
                 Voir tout
               </a>
             </div>
@@ -132,7 +132,6 @@
                     </td>
                   </tr>
 
-                  <!-- Empty state -->
                   <tr *ngIf="recentOperations.length === 0">
                     <td colspan="5" class="text-center text-muted py-4">
                       <i class="bi bi-inbox me-2"></i>Aucun audit trouvé
@@ -155,7 +154,6 @@
                 <span class="badge bg-light text-muted border small">Top {{ driftByTable.length }}</span>
               </div>
 
-              <!-- Table drift rows -->
               <div *ngFor="let t of driftByTable" class="drift-row mb-3">
                 <div class="d-flex justify-content-between align-items-center mb-1">
                   <span class="small fw-bold text-truncate" style="max-width:140px;" [title]="t.nom_table">
@@ -167,7 +165,6 @@
                           [class.text-success]="t.total_anomalies <= 5">
                       {{ t.total_anomalies }}
                     </span>
-                    <!-- Breakdown badges -->
                     <span *ngIf="t.absences > 0" class="badge bg-danger-subtle text-danger px-1 small"
                           title="Absences">A:{{ t.absences }}</span>
                     <span *ngIf="t.differences > 0" class="badge bg-warning-subtle text-warning px-1 small"
@@ -183,21 +180,19 @@
                 </div>
               </div>
 
-              <!-- Empty state -->
               <div *ngIf="driftByTable.length === 0" class="text-center text-muted py-3 small">
                 <i class="bi bi-check-circle me-1 text-success"></i>Aucune anomalie détectée
               </div>
             </div>
           </div>
 
-          <!-- QUICK INSIGHT CARD (dynamic) -->
+          <!-- QUICK INSIGHT CARD -->
           <div class="card border-0 bg-gradient-dark text-white shadow-sm rounded-4">
             <div class="card-body p-4">
               <h6 class="fw-bold mb-3">
                 <i class="bi bi-lightbulb-fill me-1 text-warning"></i> Quick Insight
               </h6>
 
-              <!-- Dynamic insight when we have drift data -->
               <ng-container *ngIf="getTopDriftTable() as top; else noInsight">
                 <p class="small opacity-75 mb-2">
                   La table <code class="text-white">{{ top.nom_table }}</code> est la plus instable

@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectorRef, NgZone, OnInit, HostListener } from '@angular/core';
+import { Component, inject, ChangeDetectorRef, NgZone, OnInit, OnDestroy, HostListener } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -47,7 +47,7 @@ interface TableGroup {
   templateUrl: './comparison.html',
   styleUrls: ['./comparison.css']
 })
-export class ComparisonComponent implements OnInit {
+export class ComparisonComponent implements OnInit, OnDestroy {
   private compareService = inject(CompareService);
   private authService    = inject(AuthService);
   private cdr            = inject(ChangeDetectorRef);
@@ -65,6 +65,8 @@ export class ComparisonComponent implements OnInit {
   tableName  = '';
   loading    = false;
   lastOperationId: number | null = null;
+  scanProgress: { done: number; total: number } | null = null;
+  private _pollTimer: any = null;
 
   // ── Column exclusion ──────────────────────────────────────
   availableColumns:  TableColumn[] = [];
@@ -356,7 +358,10 @@ formatCle(cle: any): string {
     const observer = {
       next:  (res: any) => {
         const opId = res.operationId ?? res.ID ?? res.id;
-        opId ? this.loadAnomalies(opId) : this.stopLoading();
+        if (!opId) { this.stopLoading(); return; }
+        // Full scan runs in background — poll until done
+        if (this.isFullScan) { this.pollUntilDone(opId); }
+        else                  { this.loadAnomalies(opId); }
       },
       error: (err: any) => { console.error(err); this.stopLoading(); }
     };
@@ -371,6 +376,43 @@ formatCle(cle: any): string {
         userId, [...this.excludedColumns].join(',')
       ).subscribe(observer);
     }
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this._pollTimer);
+  }
+
+  private pollUntilDone(opId: number): void {
+    this.scanProgress = null;
+    clearTimeout(this._pollTimer);
+
+    const check = () => {
+      this.compareService.getOperationStatus(opId).subscribe({
+        next: (status: any) => {
+          const done  = status.tables_done  ?? null;
+          const total = status.tables_total ?? null;
+          if (done !== null && total !== null) {
+            this.ngZone.run(() => {
+              this.scanProgress = { done, total };
+              this.cdr.markForCheck();
+            });
+          }
+
+          if (status.statut === 'EN_COURS') {
+            this._pollTimer = setTimeout(check, 3000);
+          } else {
+            this.ngZone.run(() => { this.scanProgress = null; });
+            this.loadAnomalies(opId);
+          }
+        },
+        error: () => {
+          // retry on transient error
+          this._pollTimer = setTimeout(check, 5000);
+        }
+      });
+    };
+
+    check();
   }
 
   loadAnomalies(opId: number): void {

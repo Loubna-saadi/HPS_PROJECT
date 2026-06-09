@@ -2,36 +2,26 @@ import { Component, OnInit, ChangeDetectorRef, ChangeDetectionStrategy } from '@
 import { HttpClient } from '@angular/common/http';
 import { CommonModule, DatePipe, DecimalPipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
-import { forkJoin } from 'rxjs';
-import { AuthService } from '../../../core/services/auth';
 
 const ORDS = 'http://localhost:3000/v1';
 
-interface DashboardStats {
-  last_audit_date: string;
-  total_anomalies: number;
-  sync_rate:       number;
-  total_reports:   number;
-}
-
 interface Operation {
-  id: number;
-  type: string;
-  statut: string;
-  date_operation: string;
-  source_env: string;
-  cible_env: string;
+  id:               number;
+  type:             string;
+  statut:           string;
+  date_operation:   string;
+  source_env:       string;
+  cible_env:        string;
   tables_impactees: number;
-  nb_anomalies: number;
+  nb_anomalies:     number;
 }
 
 interface DriftTable {
-  nom_table: string;
+  nom_table:       string;
   total_anomalies: number;
-  absences: number;
-  differences: number;
-  nulls: number;
-  last_seen: string;
+  absences:        number;
+  differences:     number;
+  nulls:           number;
 }
 
 @Component({
@@ -44,51 +34,55 @@ interface DriftTable {
 })
 export class DashboardComponent implements OnInit {
 
-  lastAuditDate: string | null = null;
-  totalAnomalies: number = 0;
-  syncRate: number = 0;
-  totalReports: number = 0;
+  lastAuditDate:  string | null = null;
+  totalAnomalies  = 0;
+  syncRate        = 0;
+  totalReports    = 0;
 
-  recentOperations: Operation[] = [];
-  driftByTable: DriftTable[] = [];
+  recentOperations: Operation[]  = [];
+  driftByTable:     DriftTable[] = [];
 
   loading = true;
-  error = false;
+  error   = false;
 
   constructor(
-    private http:        HttpClient,
-    private cdr:         ChangeDetectorRef,
-    private authService: AuthService
+    private http: HttpClient,
+    private cdr:  ChangeDetectorRef
   ) {}
 
-  ngOnInit(): void {
-    const userId = this.authService.getUserId();
+  ngOnInit(): void { this.load(); }
 
-    // Guard: if no user in storage, skip fetching
-    if (!userId) {
-      this.error   = true;
-      this.loading = false;
-      this.cdr.markForCheck();
-      return;
-    }
+  load(): void {
+    this.loading = true;
+    this.http.get<any>(`${ORDS}/audit/dashboard`).subscribe({
+      next: (d) => {
+        // ── KPIs ─────────────────────────────────────────────────────────────
+        this.lastAuditDate  = d.kpis?.last_audit_date  ?? null;
+        this.totalAnomalies = d.kpis?.open_anomalies   ?? 0;
+        this.syncRate       = d.kpis?.sync_rate        ?? 0;
+        this.totalReports   = d.kpis?.total_operations ?? 0;
 
-    const params = { userId: userId.toString() };
+        // ── Recent operations → map to old shape ──────────────────────────────
+        this.recentOperations = (d.recent_operations ?? []).map((op: any) => ({
+          id:               op.id,
+          type:             op.type,
+          statut:           op.statut,
+          date_operation:   op.date_operation,
+          source_env:       op.source_env,
+          cible_env:        op.cible_env,
+          tables_impactees: op.tables_scanned ?? 1,
+          nb_anomalies:     op.nb_anomalies   ?? 0,
+        }));
 
-    forkJoin({
-      stats:      this.http.get<{ items: DashboardStats[] }>(`${ORDS}/audit/dashboard-stats`,    { params }),
-      operations: this.http.get<{ items: Operation[] }>     (`${ORDS}/audit/operations/recent`,  { params }),
-      drift:      this.http.get<{ items: DriftTable[] }>    (`${ORDS}/audit/drift-by-table`,     { params }),
-    }).subscribe({
-      next: ({ stats, operations, drift }) => {
-        const s = stats.items?.[0];
-        if (s) {
-          this.lastAuditDate  = s.last_audit_date;
-          this.totalAnomalies = s.total_anomalies ?? 0;
-          this.syncRate       = s.sync_rate       ?? 0;
-          this.totalReports   = s.total_reports   ?? 0;
-        }
-        this.recentOperations = operations.items ?? [];
-        this.driftByTable     = drift.items      ?? [];
+        // ── Top tables → map to old DriftTable shape ──────────────────────────
+        this.driftByTable = (d.top_tables ?? []).map((t: any) => ({
+          nom_table:       t.nom_table,
+          total_anomalies: t.total,
+          absences:        (t.absent_cible ?? 0) + (t.absent_source ?? 0),
+          differences:     t.differente ?? 0,
+          nulls:           t.null_val   ?? 0,
+        }));
+
         this.loading = false;
         this.error   = false;
         this.cdr.markForCheck();
@@ -103,20 +97,23 @@ export class DashboardComponent implements OnInit {
 
   getStatusLabel(statut: string): string {
     const map: Record<string, string> = {
-      'TERMINE': 'Synchronisé',
+      'TERMINE':            'Synchronisé',
       'ANOMALIES_GENEREES': 'Écarts détectés',
-      'EN_COURS': 'En cours',
-      'ERREUR': 'Erreur'
+      'SCRIPT_GENERE':      'Script généré',
+      'SCRIPT_VALIDE':      'Script validé',
+      'IMPORTE':            'Importé',
+      'EN_COURS':           'En cours',
+      'ERREUR':             'Erreur'
     };
     return map[statut] ?? statut;
   }
 
   getStatusClass(statut: string): string {
     const map: Record<string, string> = {
-      'TERMINE': 'success',
+      'TERMINE':            'success',
       'ANOMALIES_GENEREES': 'warning',
-      'EN_COURS': 'info',
-      'ERREUR': 'danger'
+      'EN_COURS':           'info',
+      'ERREUR':             'danger'
     };
     return map[statut] ?? 'secondary';
   }
@@ -128,9 +125,8 @@ export class DashboardComponent implements OnInit {
   }
 
   getDriftColor(table: DriftTable): string {
-    const ratio = table.total_anomalies;
-    if (ratio > 20) return 'bg-danger';
-    if (ratio > 5)  return 'bg-warning';
+    if (table.total_anomalies > 20) return 'bg-danger';
+    if (table.total_anomalies > 5)  return 'bg-warning';
     return 'bg-success';
   }
 
@@ -140,17 +136,14 @@ export class DashboardComponent implements OnInit {
 
   formatRelativeDate(dateStr: string): string {
     if (!dateStr) return '—';
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
+    const diff   = Date.now() - new Date(dateStr).getTime();
+    const diffMin = Math.floor(diff / 60000);
     const diffH   = Math.floor(diffMin / 60);
     const diffD   = Math.floor(diffH / 24);
-
     if (diffMin < 2)  return "À l'instant";
     if (diffMin < 60) return `Il y a ${diffMin} min`;
     if (diffH < 24)   return `Il y a ${diffH}h`;
     if (diffD === 1)  return 'Hier';
-    return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+    return new Date(dateStr).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
   }
 }

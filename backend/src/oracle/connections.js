@@ -86,8 +86,9 @@ async function getPool(envCode) {
     password:      p.password,
     connectString,
     poolMin:       2,
-    poolMax:       10,
+    poolMax:       20,
     poolIncrement: 2,
+    queueTimeout:  120000,
     poolAlias:     `pool_${code}`,
   });
 

@@ -10,7 +10,12 @@
     </nav>
     <div *ngIf="loading" class="d-flex align-items-center gap-2">
       <span class="spinner-border spinner-border-sm text-primary"></span>
-      <small class="text-muted fw-medium">Analyse en cours...</small>
+      <small class="text-muted fw-medium">
+        <ng-container *ngIf="scanProgress; else defaultMsg">
+          Scan complet : {{ scanProgress.done }} / {{ scanProgress.total }} tables…
+        </ng-container>
+        <ng-template #defaultMsg>Analyse en cours…</ng-template>
+      </small>
     </div>
   </header>
 
