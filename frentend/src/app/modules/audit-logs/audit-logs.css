@@ -108,6 +108,14 @@
 .btn-details { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 6px; font-size: 0.73rem; font-weight: 600; cursor: pointer; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; transition: all .15s; white-space: nowrap; }
 .btn-details:hover { background: #dbeafe; border-color: #93c5fd; }
 
+.btn-delete { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; font-size: 0.78rem; cursor: pointer; background: #fff0f0; color: #dc2626; border: 1px solid #fecaca; transition: all .15s; }
+.btn-delete:hover { background: #fee2e2; border-color: #f87171; }
+.delete-confirm-inline { display: inline-flex; gap: 4px; align-items: center; }
+.btn-delete-ok     { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; background: #dc2626; color: #fff; border: none; }
+.btn-delete-ok:hover { background: #b91c1c; }
+.btn-delete-cancel { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 5px; font-size: 0.75rem; cursor: pointer; background: #e5e7eb; color: #374151; border: none; }
+.btn-delete-cancel:hover { background: #d1d5db; }
+
 /* Pagination */
 .pagination-bar { display: flex; align-items: center; gap: 4px; justify-content: center; flex-wrap: wrap; }
 .page-btn { min-width: 32px; height: 32px; padding: 0 8px; border: 1px solid #e0e0e0; border-radius: 6px; background: #fff; color: #444; font-size: 0.82rem; cursor: pointer; transition: all .15s; display: inline-flex; align-items: center; justify-content: center; }

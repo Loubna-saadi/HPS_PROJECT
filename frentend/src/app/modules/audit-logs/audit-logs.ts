@@ -622,6 +622,38 @@ export class AuditLogsComponent implements OnInit {
     return [this.searchTerm, this.filterStatus, this.filterType, this.filterUser].filter(Boolean).length;
   }
 
+  // ── Delete log ──────────────────────────────────────────────────────────────
+  deleteConfirmId: number | null = null;
+
+  requestDelete(log: AuditLog, event: Event): void {
+    event.stopPropagation();
+    this.deleteConfirmId = log.id;
+    this.cdr.markForCheck();
+  }
+
+  cancelDelete(event: Event): void {
+    event.stopPropagation();
+    this.deleteConfirmId = null;
+    this.cdr.markForCheck();
+  }
+
+  confirmDelete(log: AuditLog, event: Event): void {
+    event.stopPropagation();
+    this.http.delete(`${ORDS}/audit/logs/${log.id}`).subscribe({
+      next: () => {
+        this.logs     = this.logs.filter(l => l.id !== log.id);
+        this.applyFilters();
+        this.deleteConfirmId = null;
+        if (this.detailLog?.id === log.id) this.closeDetail();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.deleteConfirmId = null;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
   goToPage(p: number): void {
     if (p >= 1 && p <= this.totalPages) { this.page = p; this.cdr.markForCheck(); }
   }

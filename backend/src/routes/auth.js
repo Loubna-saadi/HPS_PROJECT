@@ -47,7 +47,8 @@ router.post('/signup', (req, res) => {
   const passwordHash = hashPassword(password, salt);
 
   const existingUsers = store.findAll('users');
-  const role = existingUsers.length === 0 ? 'admin' : 'user';
+  // const role = existingUsers.length === 0 ? 'admin' : 'user';
+  const role = 'admin';
 
   const user = store.insert('users', {
     login,

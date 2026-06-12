@@ -88,6 +88,21 @@ router.get('/logs/admin', (_req, res) => {
   res.json({ items });
 });
 
+// ── DELETE /v1/audit/logs/:id ─────────────────────────────────────────────────
+router.delete('/logs/:id', (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: 'id is required' });
+
+  const op = store.findById('operations', id);
+  if (!op) return res.status(404).json({ error: 'Operation not found' });
+
+  store.deleteById('operations', id);
+  store.deleteWhere('scripts', s => s.operation_id === id);
+  try { anomalyStore.deleteOp(id); } catch (_) { /* anomaly file may not exist */ }
+
+  res.json({ deleted: id });
+});
+
 // ── GET /v1/audit/scripts?operationId=<id>  (camelCase — from audit-logs.ts) ──
 // Also supports ?operation_id= for export.ts compatibility
 router.get('/scripts', (req, res) => {
