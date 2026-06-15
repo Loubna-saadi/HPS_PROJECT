@@ -20,21 +20,24 @@ if (!app.requestSingleInstanceLock()) {
   process.exit(0);
 }
 
-// ── Resolve the Angular index.html (dev vs packaged) ─────────────────────────
+// ── Resolve the Angular index.csr.html (dev vs packaged) ─────────────────────────
 function getIndexPath() {
   if (app.isPackaged) {
     // extraFiles copies ../frentend/dist → <install_dir>/frentend/dist
     return path.join(
       path.dirname(process.execPath),
-      'frentend', 'dist', 'config-sync-app', 'browser', 'index.html'
+      'frentend', 'dist', 'config-sync-app', 'browser', 'index.csr.html'
     );
   }
   return path.join(
-    __dirname, '..', 'frentend', 'dist', 'config-sync-app', 'browser', 'index.html'
+    __dirname, '..', 'frentend', 'dist', 'config-sync-app', 'browser', 'index.csr.html'
   );
 }
 
 const INDEX_HTML = getIndexPath();
+
+// ── Redirect local JSON data to writable AppData folder when packaged ─────────
+process.env.DATA_DIR = path.join(app.getPath('userData'), 'data');
 
 // ── Start Express backend ─────────────────────────────────────────────────────
 require('./src/index.js');

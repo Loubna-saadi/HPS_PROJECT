@@ -10,6 +10,16 @@ frentend/node_modules/
 frentend/dist/
 frentend/.angular/
 
+# Electron build output
+backend/dist/
+backend/dist/win-unpacked/
+backend/dist/*.zip
+backend/dist/*.exe
+backend/dist/*.msi
+
+# Extracted ASAR (temp build artifact)
+backend/dist/asar-extracted/
+
 # Environment / secrets
 backend/.env
 .env
