@@ -473,5 +473,20 @@ formatCle(cle: any): string {
   }
 
   trackByKey = (_: number, g: AnomalyGroup): string => g.table + '|' + g.cle;
+
+  getColumnCount(grp: AnomalyGroup): number {
+    if (grp.columns.length === 1 && grp.columns[0].type_difference === 'ROW') {
+      const raw = grp.columns[0].valeur_source ?? grp.columns[0].valeur_cible;
+      if (raw) {
+        try {
+          let s = raw.trim();
+          if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1).trim();
+          const obj = JSON.parse(s);
+          if (obj && typeof obj === 'object') return Object.keys(obj).length;
+        } catch { /* fall through */ }
+      }
+    }
+    return grp.columns.length;
+  }
   trackById  = (_: number, a: Anomaly):      number  => a.id ?? 0;
 }

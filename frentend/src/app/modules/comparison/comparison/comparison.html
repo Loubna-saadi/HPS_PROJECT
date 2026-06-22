@@ -283,7 +283,7 @@
                     <td class="fw-mono text-primary grp-key grp-key-child">{{ grp.cle }}</td>
                     <td class="text-muted fw-medium" style="font-size:0.79rem;">{{ grp.table }}</td>
                     <td class="text-center">
-                      <span class="col-count-badge">{{ grp.columns.length }}</span>
+                      <span class="col-count-badge">{{ getColumnCount(grp) }}</span>
                     </td>
                     <td class="text-center">
                       <span class="grp-status {{ getGroupStatusClass(grp.statusSummary) }}">
@@ -316,7 +316,7 @@
                 <td class="fw-mono text-primary grp-key">{{ grp.cle }}</td>
                 <td class="fw-semibold">{{ grp.table }}</td>
                 <td class="text-center">
-                  <span class="col-count-badge">{{ grp.columns.length }}</span>
+                  <span class="col-count-badge">{{ getColumnCount(grp) }}</span>
                 </td>
                 <td class="text-center">
                   <span class="grp-status {{ getGroupStatusClass(grp.statusSummary) }}">
@@ -390,7 +390,7 @@
       {{ getGroupStatusLabel(drawerGroup.statusSummary) }}
     </span>
     <span class="drawer-col-count">
-      <i class="bi bi-columns-gap me-1"></i>{{ drawerGroup.columns.length }} colonne(s)
+      <i class="bi bi-columns-gap me-1"></i>{{ getColumnCount(drawerGroup) }} colonne(s)
     </span>
     <label class="drawer-select-label ms-auto" (click)="$event.stopPropagation()">
       <input type="checkbox" class="form-check-input me-1"

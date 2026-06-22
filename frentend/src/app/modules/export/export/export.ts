@@ -397,6 +397,17 @@ export class ExportComponent implements OnInit {
   // so the link name is always correct (e.g. DEVVAL_LINK not DEV_VAL_LINK)
   // ==========================================================================
 
+  private parseRowJson(raw: string | null): Record<string, string | null> | null {
+    if (!raw) return null;
+    try {
+      let s = raw.trim();
+      if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1).trim();
+      const obj = JSON.parse(s);
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj as Record<string, string | null>;
+    } catch { /* fall through */ }
+    return null;
+  }
+
   private toOracleLiteral(val: string | null | undefined): string {
     if (val == null) return 'NULL';
     const s = String(val);
@@ -472,16 +483,34 @@ export class ExportComponent implements OnInit {
         (status.includes('ABSENT_DANS_CIBLE')  && dir === 'source') ||
         (status.includes('ABSENT_DANS_SOURCE') && dir === 'cible')
       ) {
-        lines.push(
-          `-- ➕ INSERT — ligne absente dans ${targetEnv}`,
-          `-- Clé   : ${cleLabel}`,
-          `-- Table : ${table}`,
-          `INSERT INTO ${table}@${targetLink}`,
-          `  SELECT *`,
-          `  FROM   ${table}@${authLink}`,
-          `  WHERE  ${whereClause};`,
-          ``,
-        );
+        const rawJson   = status.includes('ABSENT_DANS_CIBLE') ? first.valeur_source : first.valeur_cible;
+        const parsedRow = this.parseRowJson(rawJson);
+        if (parsedRow) {
+          const cols    = Object.keys(parsedRow);
+          const colList = cols.map(c => c.toUpperCase()).join(', ');
+          const valList = cols.map(c => this.toOracleLiteral(parsedRow[c])).join(',\n    ');
+          lines.push(
+            `-- ➕ INSERT — ligne absente dans ${targetEnv}`,
+            `-- Clé   : ${cleLabel}`,
+            `-- Table : ${table}`,
+            `INSERT INTO ${table}@${targetLink} (${colList})`,
+            `VALUES (`,
+            `    ${valList}`,
+            `);`,
+            ``,
+          );
+        } else {
+          lines.push(
+            `-- ➕ INSERT — ligne absente dans ${targetEnv}`,
+            `-- Clé   : ${cleLabel}`,
+            `-- Table : ${table}`,
+            `INSERT INTO ${table}@${targetLink}`,
+            `  SELECT *`,
+            `  FROM   ${table}@${authLink}`,
+            `  WHERE  ${whereClause};`,
+            ``,
+          );
+        }
         continue;
       }
 
