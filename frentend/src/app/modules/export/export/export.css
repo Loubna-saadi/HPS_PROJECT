@@ -122,7 +122,13 @@
 /* ── Preview table ───────────────────────────────────────── */
 .badge-count { font-size: .73rem; background: #f1f5f9; color: #475569; padding: .2rem .6rem; border-radius: 20px; font-weight: 600; }
 .column-tag { display: inline-block; font-size: .72rem; font-weight: 700; background: #f1f5f9; color: #334155; padding: .15rem .45rem; border-radius: 5px; letter-spacing: .02em; font-family: 'Courier New', monospace; }
-.diff-box { display: inline-flex; flex-direction: column; font-size: .75rem; font-weight: 600; color: #1e293b; background: #f8fafc; border: 1px solid #e9ecef; border-radius: 6px; padding: .2rem .5rem; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-box   { display: inline-flex; flex-direction: column; font-size: .75rem; font-weight: 600; color: #1e293b; background: #f8fafc; border: 1px solid #e9ecef; border-radius: 6px; padding: .2rem .5rem; max-width: 220px; }
+.diff-val   { word-break: break-all; white-space: normal; line-height: 1.4; }
+.preview-pk-cell { font-family: 'SFMono-Regular', Consolas, monospace; font-size: .76rem; min-width: 140px; max-width: 240px; }
+.preview-pk-cell .pk-pair { display: flex; gap: 5px; line-height: 1.55; }
+.preview-pk-cell .pk-col  { color: #94a3b8; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.preview-pk-cell .pk-col::after { content: ':'; }
+.preview-pk-cell .pk-val  { color: #4361ee; font-weight: 700; word-break: break-all; }
 .diff-src    { border-left: 3px solid #3b82f6; }
 .diff-target { border-left: 3px solid #f59e0b; }
 .diff-env-label { font-size: .6rem; font-weight: 700; letter-spacing: .05em; color: #94a3b8; text-transform: uppercase; margin-bottom: 1px; }

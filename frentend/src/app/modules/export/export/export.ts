@@ -217,6 +217,24 @@ export class ExportComponent implements OnInit {
     return null;
   }
 
+  // For the preview table value cells: absent-row JSON is too long for a cell —
+  // show a column-count summary instead; normal values wrap at 120 chars.
+  displayVal(val: string | null, typeDiff: string): string {
+    if (val == null) return 'NULL';
+    if (typeDiff === 'ROW') {
+      try {
+        let s = val.trim();
+        if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1).trim();
+        const obj = JSON.parse(s);
+        if (obj && typeof obj === 'object') {
+          const count = Object.keys(obj).length;
+          return `(${count} colonnes — ligne complète)`;
+        }
+      } catch { /* fall through */ }
+    }
+    return val.length > 120 ? val.slice(0, 120) + '…' : val;
+  }
+
   formatCle(cle: any): string {
     const obj = this.normaliseCleJson(cle);
     if (obj) {
@@ -302,7 +320,8 @@ export class ExportComponent implements OnInit {
       this.envSrc        = state.envSrc  ?? '';
       this.envCbl        = state.envCbl  ?? '';
       this.isFromCompare = true;
-      this.allAnomalies  = state.anomalies as Anomaly[];
+      this.allAnomalies  = (state.anomalies as Anomaly[])
+        .filter((a: Anomaly) => !(a.alerte_statut ?? '').includes('IDENTIQUE'));
       // Load real db_link names first, then build the script
       this.loadDbLinks().then(() => this.applyScope());
     } else {

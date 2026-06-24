@@ -19,6 +19,6 @@ export const routes: Routes = [
   { path: 'compare', component: ComparisonComponent  },
   { path: 'audit', component: AuditLogsComponent },
    { path: 'connection-profiles', component: ConnectionProfilesComponent },
-  { path: '', redirectTo: 'home', pathMatch: 'full' }, // Par défaut -> Home
-  { path: '**', redirectTo: 'home' }
+  { path: '', redirectTo: 'login', pathMatch: 'full' },
+  { path: '**', redirectTo: 'login' }
 ];

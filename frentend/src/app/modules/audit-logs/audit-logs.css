@@ -220,7 +220,11 @@
 .dso-grp-row { cursor: pointer; border-bottom: 1px solid #f1f5f9; transition: background .1s; }
 .dso-grp-row td { padding: 9px 14px; vertical-align: middle; }
 .dso-grp-row:hover td { background: #f8fafc; }
-.dso-grp-key { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.76rem; color: #4361ee; font-weight: 700; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dso-grp-key { font-family: 'SFMono-Regular', Consolas, monospace; font-size: 0.76rem; min-width: 160px; max-width: 260px; }
+.pk-pair { display: flex; gap: 6px; line-height: 1.55; }
+.pk-col  { color: #94a3b8; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+.pk-col::after { content: ':'; }
+.pk-val  { color: #4361ee; font-weight: 700; word-break: break-all; }
 .dso-col-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 26px; height: 22px; padding: 0 7px; background: #f1f5f9; color: #475569; border-radius: 11px; font-size: 0.76rem; font-weight: 700; }
 .dso-grp-status { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
 .grp-red    { background: #fee2e2; color: #991b1b; }

@@ -300,19 +300,24 @@
               </thead>
               <tbody>
                 <tr *ngFor="let row of previewRows; trackBy: trackById">
-                  <td class="fw-mono text-primary" style="font-size:.8rem; max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ row.cle }}</td>
+                  <td class="preview-pk-cell">
+                    <div *ngFor="let p of parseCle(row.cle)" class="pk-pair">
+                      <span class="pk-col">{{ p.col }}</span>
+                      <span class="pk-val">{{ p.val ?? 'NULL' }}</span>
+                    </div>
+                  </td>
                   <td class="fw-semibold" style="font-size:.82rem">{{ row.nom_table }}</td>
                   <td><span class="column-tag">{{ row.type_difference }}</span></td>
                   <td>
                     <div class="diff-box diff-src" [title]="row.valeur_source ?? 'NULL'">
                       <span class="diff-env-label">{{ envSrc }}</span>
-                      {{ row.valeur_source ?? 'NULL' }}
+                      <span class="diff-val">{{ displayVal(row.valeur_source, row.type_difference) }}</span>
                     </div>
                   </td>
                   <td>
                     <div class="diff-box diff-target" [title]="row.valeur_cible ?? 'NULL'">
                       <span class="diff-env-label">{{ envCbl }}</span>
-                      {{ row.valeur_cible ?? 'NULL' }}
+                      <span class="diff-val">{{ displayVal(row.valeur_cible, row.type_difference) }}</span>
                     </div>
                   </td>
                   <td class="text-center">

@@ -493,6 +493,37 @@ export class AuditLogsComponent implements OnInit {
     return [...map.entries()].map(([table, grps]) => ({ table, groups: grps, collapsed: false }));
   }
 
+  parseCleEntries(cle: string): { col: string; val: string }[] {
+    if (!cle) return [];
+    try {
+      let s = cle.trim();
+      if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1).trim();
+      s = s.replace(/^\{'/, '{').replace(/'\}$/, '}');
+      s = s.replace(/\{([A-Z_][A-Z0-9_]*)\s*:/g, '{"$1":')
+           .replace(/,\s*([A-Z_][A-Z0-9_]*)\s*:/g, ',"$1":');
+      const obj = JSON.parse(s);
+      if (obj && typeof obj === 'object') {
+        return Object.entries(obj).map(([col, val]) => ({ col, val: val == null ? 'NULL' : String(val) }));
+      }
+    } catch { /* fall through */ }
+    return [{ col: 'CLÉ', val: cle }];
+  }
+
+  getColumnCount(grp: AnomalyGroup): number {
+    if (grp.columns.length === 1 && grp.columns[0].type_difference === 'ROW') {
+      const raw = grp.columns[0].valeur_source ?? grp.columns[0].valeur_cible;
+      if (raw) {
+        try {
+          let s = raw.trim();
+          if (s.startsWith("'") && s.endsWith("'")) s = s.slice(1, -1).trim();
+          const obj = JSON.parse(s);
+          if (obj && typeof obj === 'object') return Object.keys(obj).length;
+        } catch { /* fall through */ }
+      }
+    }
+    return grp.columns.length;
+  }
+
   toggleDetailTableGroup(tg: { collapsed: boolean }): void {
     tg.collapsed = !tg.collapsed;
     this.cdr.markForCheck();

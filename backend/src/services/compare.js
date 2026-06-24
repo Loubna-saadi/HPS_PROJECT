@@ -91,7 +91,7 @@ async function detectPK(envCode, tableName) {
 
 function valStr(v) {
   if (v === null || v === undefined) return null;
-  if (v instanceof Date) return v.toISOString();
+  if (v instanceof Date) return v.toISOString(); // fallback: fetchTypeHandler should prevent this
   return String(v);
 }
 

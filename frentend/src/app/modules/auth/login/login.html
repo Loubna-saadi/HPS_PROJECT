@@ -1,37 +1,113 @@
-<div class="auth-wrapper d-flex align-items-center justify-content-center">
-  <div class="card shadow border-0 auth-card">
-    <div class="card-body p-5">
-      <div class="text-center mb-4">
-        <h3 class="fw-bold text-primary">ConfigSync Login</h3>
-        <p class="text-muted small">Accès réservé : Admin, SuperUser, User</p>
+<div class="login-shell">
+
+  <!-- ── Left branding panel ────────────────────────────────────────────── -->
+  <div class="brand-panel">
+    <div class="brand-bg-circle brand-bg-1"></div>
+    <div class="brand-bg-circle brand-bg-2"></div>
+
+    <div class="brand-content">
+      <div class="brand-logo">
+        <i class="bi bi-arrow-left-right"></i>
       </div>
-      
-      <form (ngSubmit)="onSubmit()">
-        <div class="mb-3">
-          <label class="form-label small fw-bold">Login</label>
-          <input type="text" name="username" [(ngModel)]="loginData.login" class="form-control" required>
-        </div>
+      <h1 class="brand-name">ConfigSync</h1>
+      <p class="brand-tag">Plateforme de synchronisation<br>d'environnements Oracle</p>
 
-        <div class="mb-4">
-          <label class="form-label small fw-bold">Mot de passe</label>
-          <input type="password" name="pwd" [(ngModel)]="loginData.password" class="form-control" required>
-        </div>
-
-        @if (errorMessage) {
-          <div class="alert alert-danger py-2 small border-0">
-            <i class="bi bi-exclamation-circle me-2"></i> {{ errorMessage }}
+      <div class="brand-features">
+        <div class="feat">
+          <div class="feat-icon"><i class="bi bi-intersect"></i></div>
+          <div>
+            <div class="feat-title">Comparaison multi-environnements</div>
+            <div class="feat-sub">DEV · DEV_VAL · UAT · SIT · PROD</div>
           </div>
-        }
-
-        <button type="submit" class="btn btn-primary w-100 py-2 shadow-sm">
-          Se connecter
-        </button>
-
-        <p class="text-center text-muted small mt-3 mb-0">
-          Pas encore de compte ?
-          <a routerLink="/signup" class="text-primary fw-bold text-decoration-none">Créer un compte</a>
-        </p>
-      </form>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i class="bi bi-code-slash"></i></div>
+          <div>
+            <div class="feat-title">Génération de scripts SQL</div>
+            <div class="feat-sub">Export automatique des corrections</div>
+          </div>
+        </div>
+        <div class="feat">
+          <div class="feat-icon"><i class="bi bi-journal-check"></i></div>
+          <div>
+            <div class="feat-title">Audit &amp; traçabilité</div>
+            <div class="feat-sub">Historique complet par rôle</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
+
+  <!-- ── Right form panel ───────────────────────────────────────────────── -->
+  <div class="form-panel">
+    <div class="form-card">
+
+      <div class="form-header">
+        <div class="form-logo-sm">
+          <i class="bi bi-arrow-left-right"></i>
+        </div>
+        <h2 class="form-title">Connexion</h2>
+        <p class="form-sub">Entrez vos identifiants pour accéder à la plateforme</p>
+      </div>
+
+      <form (ngSubmit)="onSubmit()" autocomplete="off">
+
+        <!-- Login -->
+        <div class="field">
+          <label class="field-label">Identifiant</label>
+          <div class="input-wrap">
+            <i class="bi bi-person input-icon"></i>
+            <input
+              type="text"
+              name="login"
+              class="field-input"
+              placeholder="Votre login"
+              [(ngModel)]="loginData.login"
+              autocomplete="username"
+              required>
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="field">
+          <label class="field-label">Mot de passe</label>
+          <div class="input-wrap">
+            <i class="bi bi-lock input-icon"></i>
+            <input
+              [type]="showPw ? 'text' : 'password'"
+              name="password"
+              class="field-input"
+              placeholder="Votre mot de passe"
+              [(ngModel)]="loginData.password"
+              autocomplete="current-password"
+              required>
+            <button type="button" class="pw-eye" (click)="showPw = !showPw" tabindex="-1">
+              <i class="bi" [class.bi-eye]="!showPw" [class.bi-eye-slash]="showPw"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div class="error-banner" *ngIf="errorMessage">
+          <i class="bi bi-exclamation-circle-fill"></i>
+          <span>{{ errorMessage }}</span>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-login" [disabled]="loading">
+          <span *ngIf="loading" class="spinner-border spinner-border-sm"></span>
+          <span>{{ loading ? 'Connexion...' : 'Se connecter' }}</span>
+          <i *ngIf="!loading" class="bi bi-arrow-right"></i>
+        </button>
+
+      </form>
+
+      <div class="form-footer">
+        <i class="bi bi-shield-lock"></i>
+        Accès réservé : Admin &middot; Super User &middot; Utilisateur
+      </div>
+
+    </div>
+  </div>
+
 </div>

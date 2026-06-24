@@ -30,6 +30,23 @@ function getOracleDb() {
   return oracledb;
 }
 
+// fetchTypeHandler passed to every execute() call.
+// Converts Oracle DATE and TIMESTAMP columns to plain strings so that no
+// JS timezone conversion is applied — both environments return the exact
+// same raw bytes for the same stored value, making comparison reliable.
+function makeFetchTypeHandler(db) {
+  return (meta) => {
+    if (
+      meta.dbType === db.DB_TYPE_DATE      ||
+      meta.dbType === db.DB_TYPE_TIMESTAMP ||
+      meta.dbType === db.DB_TYPE_TIMESTAMP_TZ  ||
+      meta.dbType === db.DB_TYPE_TIMESTAMP_LTZ
+    ) {
+      return { type: db.STRING };
+    }
+  };
+}
+
 // Pool cache: env_code (uppercase) → pool instance
 const pools = {};
 
@@ -90,6 +107,14 @@ async function getPool(envCode) {
     poolIncrement: 2,
     queueTimeout:  120000,
     poolAlias:     `pool_${code}`,
+    // Normalise every new physical connection: UTC session timezone so the
+    // driver interprets DATE bytes the same way regardless of DBTIMEZONE,
+    // and a fixed NLS_DATE_FORMAT so fetchTypeHandler returns consistent strings.
+    sessionCallback: async (conn) => {
+      await conn.execute(
+        `ALTER SESSION SET TIME_ZONE = 'UTC' NLS_DATE_FORMAT = 'YYYY-MM-DD"T"HH24:MI:SS'`
+      );
+    },
   });
 
   console.log(`[oracle] Pool ready for ${code}`);
@@ -142,8 +167,9 @@ async function query(envCode, sql, binds = [], opts = {}) {
   try {
     conn = await getConnection(envCode);
     const result = await conn.execute(sql, binds, {
-      outFormat:      db.OUT_FORMAT_OBJECT,
-      fetchArraySize: 1000,
+      outFormat:       db.OUT_FORMAT_OBJECT,
+      fetchArraySize:  1000,
+      fetchTypeHandler: makeFetchTypeHandler(db),
       ...opts,
     });
     return (result.rows || []).map(row => {
@@ -164,9 +190,10 @@ async function queryStream(envCode, sql, binds = [], rowCallback, batchSize = 50
   try {
     conn = await getConnection(envCode);
     const result = await conn.execute(sql, binds, {
-      outFormat:      db.OUT_FORMAT_OBJECT,
-      fetchArraySize: batchSize,
-      resultSet:      true,
+      outFormat:        db.OUT_FORMAT_OBJECT,
+      fetchArraySize:   batchSize,
+      resultSet:        true,
+      fetchTypeHandler: makeFetchTypeHandler(db),
     });
     const rs = result.resultSet;
     let batch;

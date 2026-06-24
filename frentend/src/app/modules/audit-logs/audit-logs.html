@@ -300,9 +300,14 @@
               </tr>
               <ng-container *ngIf="!tg.collapsed">
                 <tr *ngFor="let grp of tg.groups; trackBy: trackByGroup" class="dso-grp-row" (click)="openInnerDrawer(grp)">
-                  <td class="dso-grp-key">{{ grp.cle }}</td>
+                  <td class="dso-grp-key">
+                    <div *ngFor="let p of parseCleEntries(grp.cle)" class="pk-pair">
+                      <span class="pk-col">{{ p.col }}</span>
+                      <span class="pk-val">{{ p.val }}</span>
+                    </div>
+                  </td>
                   <td class="text-muted" style="font-size:.79rem">{{ grp.table }}</td>
-                  <td class="text-center"><span class="dso-col-badge">{{ grp.columns.length }}</span></td>
+                  <td class="text-center"><span class="dso-col-badge">{{ getColumnCount(grp) }}</span></td>
                   <td class="text-center">
                     <span class="dso-grp-status {{ getGroupStatusClass(grp.worst) }}">{{ getGroupStatusLabel(grp.worst) }}</span>
                   </td>
@@ -628,7 +633,7 @@
     <button class="dso-close-action" (click)="closeInnerDrawer()">
       <i class="bi bi-arrow-left me-1"></i>Retour
     </button>
-    <span style="font-size:.69rem; color:#94a3b8">{{ detailDrawerGroup.columns.length }} colonne(s) analysée(s)</span>
+    <span style="font-size:.69rem; color:#94a3b8">{{ getColumnCount(detailDrawerGroup) }} colonne(s) analysée(s)</span>
   </div>
 
 </aside>
