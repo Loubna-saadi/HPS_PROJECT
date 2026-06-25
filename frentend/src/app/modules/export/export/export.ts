@@ -45,7 +45,7 @@ export interface SimRecord {
 }
 
 type ExportScope     = 'all' | 'absences' | 'differences' | 'nulls';
-type RuleDirection   = 'source' | 'cible';
+type RuleDirection   = string;   // stores the actual env name that acts as authority
 type ScriptSaveState = 'idle' | 'saving' | 'saved' | 'error';
 type SimState        = 'idle' | 'running' | 'done' | 'error';
 
@@ -100,7 +100,7 @@ export class ExportComponent implements OnInit {
   readonly PAGE_SIZE = 8;
 
   // ── Script editor ──────────────────────────────────────────────────────────
-  ruleDirection:       RuleDirection   = 'source';
+  ruleDirection:       RuleDirection   = '';   // set to envSrc once loaded
   scriptContent:       string          = '';
   scriptSaveState:     ScriptSaveState = 'idle';
   scriptSavedId:       number | null   = null;
@@ -147,6 +147,8 @@ export class ExportComponent implements OnInit {
   get affectedTables(): string[] {
     return [...new Set(this.filteredAnomalies.map(a => a.nom_table))];
   }
+
+  get isSourceAuthority(): boolean { return this.ruleDirection === this.envSrc; }
 
   get simSummary() {
     return {
@@ -319,6 +321,7 @@ export class ExportComponent implements OnInit {
       this.operationId   = state.operationId;
       this.envSrc        = state.envSrc  ?? '';
       this.envCbl        = state.envCbl  ?? '';
+      this.ruleDirection = this.envSrc;   // default authority = source env
       this.isFromCompare = true;
       this.allAnomalies  = (state.anomalies as Anomaly[])
         .filter((a: Anomaly) => !(a.alerte_statut ?? '').includes('IDENTIQUE'));
@@ -352,6 +355,7 @@ export class ExportComponent implements OnInit {
     this.operationId         = op.id;
     this.envSrc              = op.source_env;
     this.envCbl              = op.cible_env;
+    this.ruleDirection       = op.source_env;  // default authority = source env
     this.isFromCompare       = false;
     this.showOperationPicker = false;
     this.previewPage         = 1;
@@ -442,17 +446,17 @@ export class ExportComponent implements OnInit {
     this.scriptSaveState = 'idle';
     this.scriptSavedId   = null;
 
-    const rows = this.filteredAnomalies;
-    const dir  = this.ruleDirection;
+    const rows       = this.filteredAnomalies;
+    const srcIsAuth  = this.isSourceAuthority;
 
     // Authority env = values that WIN
-    const authEnv   = dir === 'source' ? this.envSrc : this.envCbl;
+    const authEnv   = srcIsAuth ? this.envSrc : this.envCbl;
     // Target env    = env that gets corrected
-    const targetEnv = dir === 'source' ? this.envCbl : this.envSrc;
+    const targetEnv = srcIsAuth ? this.envCbl : this.envSrc;
 
     // Real db_link names from ENVIRONNEMENT
-    const authLink   = dir === 'source' ? this.dbLinkSrc : this.dbLinkCbl;
-    const targetLink = dir === 'source' ? this.dbLinkCbl : this.dbLinkSrc;
+    const authLink   = srcIsAuth ? this.dbLinkSrc : this.dbLinkCbl;
+    const targetLink = srcIsAuth ? this.dbLinkCbl : this.dbLinkSrc;
 
     // Warn in header if links not resolved yet
     const linkWarn = (!authLink || !targetLink)
@@ -499,8 +503,8 @@ export class ExportComponent implements OnInit {
 
       // INSERT: row missing in target ────────────────────────────────────────
       if (
-        (status.includes('ABSENT_DANS_CIBLE')  && dir === 'source') ||
-        (status.includes('ABSENT_DANS_SOURCE') && dir === 'cible')
+        (status.includes('ABSENT_DANS_CIBLE')  && srcIsAuth) ||
+        (status.includes('ABSENT_DANS_SOURCE') && !srcIsAuth)
       ) {
         const rawJson   = status.includes('ABSENT_DANS_CIBLE') ? first.valeur_source : first.valeur_cible;
         const parsedRow = this.parseRowJson(rawJson);
@@ -535,8 +539,8 @@ export class ExportComponent implements OnInit {
 
       // DELETE (commented — manual validation required) ──────────────────────
       if (
-        (status.includes('ABSENT_DANS_CIBLE')  && dir === 'cible') ||
-        (status.includes('ABSENT_DANS_SOURCE') && dir === 'source')
+        (status.includes('ABSENT_DANS_CIBLE')  && !srcIsAuth) ||
+        (status.includes('ABSENT_DANS_SOURCE') && srcIsAuth)
       ) {
         lines.push(
           `-- 🗑  REVIEW DELETE — ligne présente uniquement dans ${targetEnv}`,
@@ -558,7 +562,7 @@ export class ExportComponent implements OnInit {
       if (!updateCols.length) continue;
 
       const setClauses = updateCols.map(c => {
-        const rawVal = dir === 'source' ? c.valeur_source : c.valeur_cible;
+        const rawVal = srcIsAuth ? c.valeur_source : c.valeur_cible;
         return `    ${c.type_difference} = ${this.toOracleLiteral(rawVal)}`;
       }).join(',\n');
 
@@ -590,7 +594,7 @@ export class ExportComponent implements OnInit {
 
     this.http.post<any>(`${ORDS}/audit/generate-script`, {
       operation_id: this.operationId,
-      direction:    this.ruleDirection,
+      direction:    this.isSourceAuthority ? 'source' : 'cible',
     }).subscribe({
       next: (res) => {
         this.scriptContent       = res.script ?? '';
@@ -623,7 +627,7 @@ export class ExportComponent implements OnInit {
 
     this.http.post<SimRecord[]>(`${ORDS}/audit/simulate-script`, {
       operation_id: this.operationId,
-      direction:    this.ruleDirection,
+      direction:    this.isSourceAuthority ? 'source' : 'cible',
     }).subscribe({
       next: (records) => {
         this.simRecords    = records ?? [];
@@ -721,7 +725,7 @@ export class ExportComponent implements OnInit {
     this.http.post<any>(`${ORDS}/audit/scripts`, {
       operation_id: this.operationId,
       contenu_sql:  this.scriptContent,
-      direction:    this.ruleDirection,
+      direction:    this.isSourceAuthority ? 'source' : 'cible',
       scope:        this.exportScope,
       statut:       'SCRIPT_GENERE',
     }).subscribe({

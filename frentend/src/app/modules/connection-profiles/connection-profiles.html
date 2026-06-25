@@ -16,7 +16,7 @@
         </p>
       </div>
     </div>
-    <button *ngIf="canEdit && unconfiguredEnvs.length > 0"
+    <button *ngIf="canEdit"
             class="btn-add-profile" (click)="openCreate()">
       <i class="bi bi-plus-lg me-2"></i>Ajouter un profil
     </button>
@@ -47,7 +47,7 @@
        OVERVIEW STRIP (summary of all 5 envs)
   ══════════════════════════════════════════════ -->
   <div *ngIf="!loading && canEdit" class="cp-env-strip">
-    <div *ngFor="let env of ['DEV','DEV_VAL','UAT','SIT','PROD']; trackBy: trackByStr"
+    <div *ngFor="let env of ['DEV','DEV_VAL','MASTER_VAL','UAT','SIT','PROD']; trackBy: trackByStr"
          class="cp-env-pill"
          [class.cp-env-configured]="configuredEnvCodes.includes(env)"
          [class.cp-env-missing]="!configuredEnvCodes.includes(env)"
@@ -242,12 +242,34 @@
       <label class="cp-label">
         <i class="bi bi-layers me-1"></i>Environnement <span class="cp-req">*</span>
       </label>
-      <select [(ngModel)]="form.env_code" class="cp-select">
+
+      <!-- Step 1: pick from known envs OR choose "Autre" -->
+      <select [(ngModel)]="envSelectChoice"
+              (ngModelChange)="onEnvSelectChange($event)"
+              class="cp-select">
         <option value="" disabled>Sélectionner…</option>
-        <option *ngFor="let env of availableEnvsForForm(); trackBy: trackByStr" [value]="env">
+        <option *ngFor="let env of knownEnvsForDatalist(); trackBy: trackByStr" [value]="env">
           {{ env }} — {{ envLabel(env) }}
         </option>
+        <option value="__custom__">Autre… (saisir manuellement)</option>
       </select>
+
+      <!-- Step 2: free-text input revealed when "Autre" is chosen -->
+      <div *ngIf="envSelectChoice === '__custom__'" class="cp-custom-env-wrap">
+        <input
+          type="text"
+          [(ngModel)]="form.env_code"
+          (input)="onEnvInput($event)"
+          class="cp-input"
+          placeholder="Ex : PREPROD, REC, INT, HOTFIX…"
+          autocomplete="off"
+          spellcheck="false"
+          autofocus>
+        <span class="cp-hint">
+          <i class="bi bi-info-circle me-1"></i>
+          Majuscules, chiffres et _ uniquement (ex : PREPROD_1)
+        </span>
+      </div>
     </div>
 
     <!-- Env badge (edit mode — not changeable) -->

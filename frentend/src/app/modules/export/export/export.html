@@ -195,12 +195,12 @@
             <div class="rule-toggle-group">
               <span class="rule-toggle-label">Règle :</span>
               <div class="rule-toggle">
-                <button class="rule-btn" [class.rule-btn-active]="ruleDirection === 'source'"
-                        (click)="onRuleDirectionChange('source')">
+                <button class="rule-btn" [class.rule-btn-active]="ruleDirection === envSrc"
+                        (click)="onRuleDirectionChange(envSrc)">
                   <i class="bi bi-database me-1"></i>{{ envSrc || 'SOURCE' }} impose
                 </button>
-                <button class="rule-btn" [class.rule-btn-active]="ruleDirection === 'cible'"
-                        (click)="onRuleDirectionChange('cible')">
+                <button class="rule-btn" [class.rule-btn-active]="ruleDirection === envCbl"
+                        (click)="onRuleDirectionChange(envCbl)">
                   <i class="bi bi-database me-1"></i>{{ envCbl || 'CIBLE' }} impose
                 </button>
               </div>
@@ -210,11 +210,11 @@
           <!-- Rule explanation -->
           <div class="rule-explanation">
             <i class="bi bi-info-circle me-2"></i>
-            <span *ngIf="ruleDirection === 'source'">
+            <span *ngIf="ruleDirection === envSrc">
               <strong>{{ envSrc }}</strong> fait autorité.
               Les UPDATE/DELETE/INSERT ciblent <strong>{{ envCbl }}</strong> pour qu'il reflète la source.
             </span>
-            <span *ngIf="ruleDirection === 'cible'">
+            <span *ngIf="ruleDirection === envCbl">
               <strong>{{ envCbl }}</strong> fait autorité.
               Les UPDATE/DELETE/INSERT ciblent <strong>{{ envSrc }}</strong> pour qu'il reflète la cible.
             </span>

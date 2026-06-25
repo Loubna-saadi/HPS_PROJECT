@@ -40,7 +40,7 @@ type FormMode  = 'create' | 'edit';
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 type TestState = 'idle' | 'testing' | 'ok' | 'fail';
 
-const ALL_ENVS = ['DEV', 'DEV_VAL', 'UAT', 'SIT', 'PROD'];
+const ALL_ENVS = ['DEV', 'DEV_VAL', 'MASTER_VAL', 'UAT', 'SIT', 'PROD'];
 
 const EMPTY_FORM = (): Partial<ConnectionProfile> => ({
   env_code:     '',
@@ -94,6 +94,7 @@ export class ConnectionProfilesComponent implements OnInit {
   saveError     = '';
   linksCreated: { from: string; to: string; link: string }[] = [];
   linksFailed:  { from: string; to: string; error: string }[] = [];
+  envSelectChoice = '';
 
   // ── Per-card test state ───────────────────────────────────────────────────
   testStates:  Map<string, TestState>  = new Map();
@@ -169,12 +170,13 @@ export class ConnectionProfilesComponent implements OnInit {
 
   // ── Drawer open / close ───────────────────────────────────────────────────
   openCreate(envCode?: string): void {
-    this.formMode   = 'create';
-    this.form       = { ...EMPTY_FORM(), env_code: envCode ?? '' };
-    this.showPass   = false;
-    this.saveState  = 'idle';
-    this.saveError  = '';
-    this.drawerOpen = true;
+    this.formMode        = 'create';
+    this.form            = { ...EMPTY_FORM(), env_code: envCode ?? '' };
+    this.envSelectChoice = envCode ?? '';
+    this.showPass        = false;
+    this.saveState       = 'idle';
+    this.saveError       = '';
+    this.drawerOpen      = true;
     document.body.classList.add('cp-drawer-open');
     this.cdr.markForCheck();
   }
@@ -317,24 +319,53 @@ export class ConnectionProfilesComponent implements OnInit {
     return this.unconfiguredEnvs;
   }
 
+  // Known envs for the select: standard list + any custom envs already saved
+  knownEnvsForDatalist(): string[] {
+    const custom = this.profiles
+      .map(p => p.env_code)
+      .filter(e => !ALL_ENVS.includes(e));
+    return [...ALL_ENVS, ...custom];
+  }
+
+  // Called when the select changes
+  onEnvSelectChange(val: string): void {
+    if (val !== '__custom__') {
+      this.form.env_code = val;
+    } else {
+      this.form.env_code = '';
+    }
+    this.cdr.markForCheck();
+  }
+
+  // Force uppercase as the user types in the free-text input
+  onEnvInput(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const upper = input.value.toUpperCase().replace(/[^A-Z0-9_]/g, '');
+    this.form.env_code = upper;
+    input.value        = upper;
+    this.cdr.markForCheck();
+  }
+
   envColor(code: string): string {
     const map: Record<string, string> = {
-      DEV:     '#3b82f6',
-      DEV_VAL: '#8b5cf6',
-      UAT:     '#f59e0b',
-      SIT:     '#10b981',
-      PROD:    '#ef4444',
+      DEV:        '#3b82f6',
+      DEV_VAL:    '#8b5cf6',
+      MASTER_VAL: '#0ea5e9',
+      UAT:        '#f59e0b',
+      SIT:        '#10b981',
+      PROD:       '#ef4444',
     };
     return map[code] ?? '#64748b';
   }
 
   envLabel(code: string): string {
     const map: Record<string, string> = {
-      DEV:     'Development',
-      DEV_VAL: 'Dev Validation',
-      UAT:     'User Acceptance',
-      SIT:     'System Integration',
-      PROD:    'Production',
+      DEV:        'Development',
+      DEV_VAL:    'Dev Validation',
+      MASTER_VAL: 'Master Validation',
+      UAT:        'User Acceptance',
+      SIT:        'System Integration',
+      PROD:       'Production',
     };
     return map[code] ?? code;
   }

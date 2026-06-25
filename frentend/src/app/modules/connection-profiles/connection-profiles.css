@@ -687,6 +687,13 @@
   line-height: 1.4;
 }
 
+.cp-custom-env-wrap {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 /* Env badge (edit mode) */
 .cp-env-badge-lg {
   display: inline-flex;
