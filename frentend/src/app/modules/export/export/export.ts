@@ -435,7 +435,13 @@ export class ExportComponent implements OnInit {
     if (val == null) return 'NULL';
     const s = String(val);
     if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(s)) {
-      const dt = s.replace('T', ' ').replace(/\.\d+Z?$/, '').substring(0, 19);
+      const isUtc = s.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(s);
+      const dt = s.replace('T', ' ').replace(/\.\d+Z?$/, '').replace(/[+-]\d{2}:\d{2}$/, '').substring(0, 19);
+      if (isUtc) {
+        // Value is UTC — let Oracle convert to the session's local time so the
+        // stored DATE matches what the comparison backend reads back via the same offset.
+        return `CAST(FROM_TZ(TIMESTAMP '${dt}', 'UTC') AT LOCAL AS DATE)`;
+      }
       return `TO_DATE('${dt}','YYYY-MM-DD HH24:MI:SS')`;
     }
     return `'${s.replace(/'/g, "''")}'`;
