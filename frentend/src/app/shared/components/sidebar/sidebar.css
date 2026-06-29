@@ -44,3 +44,7 @@
 }
 
 .nav-link.active i { color: #000; }
+
+.sidebar-footer {
+  margin-top: auto;
+}

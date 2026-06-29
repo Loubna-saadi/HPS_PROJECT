@@ -56,9 +56,9 @@ export class ComparisonComponent implements OnInit, OnDestroy {
   private router         = inject(Router);
 
   // ── Environments ──────────────────────────────────────────
-  availableEnvs = ['DEV', 'DEV_VAL', 'PROD', 'UAT', 'SIT'];
-  envSrc  = 'DEV';
-  envCbl  = 'DEV_VAL';
+  availableEnvs: string[] = [];
+  envSrc  = '';
+  envCbl  = '';
 
   // ── Mode ──────────────────────────────────────────────────
   isFullScan = false;
@@ -128,7 +128,24 @@ export class ComparisonComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.loadAvailableTables();
+    this.loadAvailableEnvs();
+  }
+
+  private loadAvailableEnvs(): void {
+    this.http.get<any>(`${ORDS}/audit/connection-profiles`).subscribe({
+      next: (res) => {
+        const raw: any[] = res.items ?? (Array.isArray(res) ? res : []);
+        const envs = [...new Set(raw.map(p => (p.env_code ?? p.ENV_CODE ?? '')).filter(Boolean))] as string[];
+        this.availableEnvs = envs;
+        this.envSrc = envs[0] ?? '';
+        this.envCbl = envs[1] ?? envs[0] ?? '';
+        this.cdr.markForCheck();
+        this.loadAvailableTables();
+      },
+      error: () => {
+        this.loadAvailableTables();
+      }
+    });
   }
 
   // ── Drawer controls ───────────────────────────────────────
